@@ -1,4 +1,5 @@
 papers/*
+data/*
 
 report/build/*.aux
 report/build/*.bbl
