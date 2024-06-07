@@ -1,5 +1,5 @@
-papers/*
-data/*
+papers
+data
 
 report/build/*.aux
 report/build/*.bbl
@@ -7,3 +7,6 @@ report/build/*.blg
 report/build/*.log
 report/build/*.synctex.gz
 report/build/*.toc
+
+code/.venv
+code/.ipynb_checkpoints
