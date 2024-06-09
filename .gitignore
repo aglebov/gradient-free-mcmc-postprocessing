@@ -10,3 +10,4 @@ report/build/*.toc
 
 code/.venv
 code/.ipynb_checkpoints
+code/build
