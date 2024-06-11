@@ -12,4 +12,5 @@ and
 > 3. `Huang, C., Joseph, V. R. (2023). Enhancing Sample Quality through Minimum Energy Importance Weights. arXiv preprint arXiv:2310.07953.`
 
 We replicate the results presented from [1] for the Lotka-Volterra model in ``code/Lotka-Volterra.ipynb``.
+
 The ``code`` directory also contains several examples of using the relevant Python packages.
