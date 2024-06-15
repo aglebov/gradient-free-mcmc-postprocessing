@@ -9,5 +9,9 @@ report/build/*.synctex.gz
 report/build/*.toc
 
 code/.venv
-code/.ipynb_checkpoints
 code/build
+
+**/__pycache__
+**/.ipynb_checkpoints
+
+.vscode

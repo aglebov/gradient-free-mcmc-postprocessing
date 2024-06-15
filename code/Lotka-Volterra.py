@@ -37,6 +37,8 @@ from dask.distributed import Client, progress
 
 from stein_thinning.thinning import thin
 
+from utils.parallel import map_parallel, apply_along_axis_parallel
+
 # %%
 import nest_asyncio
 nest_asyncio.apply()
@@ -47,53 +49,6 @@ nest_asyncio.apply()
 # %%
 client = Client(processes=True, threads_per_worker=4, n_workers=4, memory_limit='2GB')
 client
-
-
-# %% [markdown]
-# A helper function to parallelise computation over elements of an iterable:
-
-# %%
-def map_parallel(func, iterable, client):
-    """Apply the function to each element of the iterable in parallel"""
-    results = [client.submit(func, item) for item in iterable]
-    return client.gather(results)
-
-
-# %% [markdown]
-# A helper function to process chunks or rows or columns of an array in parallel:
-
-# %%
-def apply_along_axis_parallel(func1d, axis, arr, chunk_size, client):
-    """Apply function along the given axis and parallelise in chunks"""
-    assert axis in (0, 1)
-
-    # define a generator to obtain chunks of the matrix
-    n_chunks = (arr.shape[1 - axis] - 1) // chunk_size + 1
-    def chunker():
-        for i in range(n_chunks):
-            index_slice = slice(i * chunk_size, (i + 1) * chunk_size)
-            if axis == 1:
-                chunk = arr[index_slice, :]
-            else:
-                chunk = arr[:, index_slice]
-            yield chunk
-
-    # define the function to apply to chunks
-    def func(chunk):
-        return np.apply_along_axis(func1d, axis, chunk)
-    
-    # apply function to chunks in parallel
-    results = map_parallel(func, chunker(), client)
-    
-    # reshape the results
-    for i, result in enumerate(results):
-        if len(result.shape) == 1:
-            if axis == 1:
-                results[i] = result.reshape(-1, 1)
-            else:
-                results[i] = result.reshape(1, -1)
-    
-    return np.concatenate(results, axis=1 - axis)
 
 
 # %% [markdown]
