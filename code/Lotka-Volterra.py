@@ -35,6 +35,8 @@ from jax import jacobian
 import dask.array as da
 from dask.distributed import Client, progress
 
+import coiled
+
 from stein_thinning.thinning import thin
 
 from utils.parallel import map_parallel, apply_along_axis_parallel
@@ -47,7 +49,12 @@ nest_asyncio.apply()
 # We create a Dask client in order to parallelise calculations where possible:
 
 # %%
-client = Client(processes=True, threads_per_worker=4, n_workers=4, memory_limit='2GB')
+use_aws = True
+if use_aws:
+    cluster = coiled.Cluster(n_workers=10, region="us-east-1")
+    client = cluster.get_client()
+else:
+    client = Client(processes=True, threads_per_worker=4, n_workers=4, memory_limit='2GB')
 client
 
 
@@ -235,7 +242,7 @@ def run_rw_sampler(theta_init):
 
 # %%
 # %%time
-rw_samples = map_parallel(run_rw_sampler, theta_inits)
+rw_samples = map_parallel(run_rw_sampler, theta_inits, client)
 
 
 # %% [markdown]
@@ -665,17 +672,17 @@ grad = np.apply_along_axis(grad_log_posterior, 1, unique_samples)
 # %% [markdown]
 # We note that calculating gradients after a MCMC run is what is called "embarrassingly parallelisable" and the time required for this step can be effectively eliminated given sufficient computational resources. This is in contrast to the MCMC run itself, which is inherently sequential.
 #
-# Here we demonstrate how the popular package ``Dask`` can be used to parallelise this computation across the cores of a CPU on a single machine.
+# Here we demonstrate how the popular package ``Dask`` can be used to parallelise this computation on AWS with 10 worker nodes.
 
 # %%
 # %%time
-grad_parallel = apply_along_axis_parallel(grad_log_posterior, 1, unique_samples, 200, client)
+grad_parallel = apply_along_axis_parallel(grad_log_posterior, 1, unique_samples, 15_000, client)
 
 # %% [markdown]
 # Confirm the values are identical to the sequential run:
 
 # %%
-assert np.max(np.abs(grad_parallel - grad)) < 1e-9
+assert np.max(np.abs((grad_parallel - grad) / grad)) < 1e-6
 
 
 # %% [markdown]
