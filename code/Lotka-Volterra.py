@@ -35,11 +35,10 @@ from jax import jacobian
 import dask.array as da
 from dask.distributed import Client, progress
 
-import coiled
-
 from stein_thinning.thinning import thin
 
 from utils.parallel import map_parallel, apply_along_axis_parallel
+from utils.plotting import plot_paths, plot_trace, plot_traces
 
 # %%
 import nest_asyncio
@@ -49,12 +48,7 @@ nest_asyncio.apply()
 # We create a Dask client in order to parallelise calculations where possible:
 
 # %%
-use_aws = True
-if use_aws:
-    cluster = coiled.Cluster(n_workers=10, region="us-east-1")
-    client = cluster.get_client()
-else:
-    client = Client(processes=True, threads_per_worker=4, n_workers=4, memory_limit='2GB')
+client = Client(processes=True, threads_per_worker=4, n_workers=4, memory_limit='2GB')
 client
 
 
@@ -244,47 +238,11 @@ def run_rw_sampler(theta_init):
 # %%time
 rw_samples = map_parallel(run_rw_sampler, theta_inits, client)
 
-
 # %% [markdown]
 # Reproduce the first column in Figure S17 from the Supplementary Material:
 
 # %%
-def plot_trace(samples, axs=None):
-    if axs is None:
-        n_cols = samples.shape[1]
-        fig, axs = plt.subplots(1, samples.shape[1], figsize=(3 * n_cols, 3), constrained_layout=True)
-    for i in range(d):
-        axs[i].plot(samples[:, i]);
-        axs[i].set_xscale('log');
-        axs[i].set_xlabel('n');
-        axs[i].set_ylabel(f'Parameter {i + 1}');
-
-
-# %%
-def plot_traces(traces):
-    assert len(traces) > 0
-    n_rows = len(traces)
-    n_cols = traces[0].shape[1]
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(3 * n_cols, 2.5 * n_rows), constrained_layout=True, sharex=True)
-    for i, trace in enumerate(traces):
-        plot_trace(trace, axs[i] if n_rows > 1 else axs)
-
-
-# %%
 plot_traces(rw_samples)
-
-
-# %%
-def plot_paths(traces, theta_inits, idx1=0, idx2=1, ax=None):
-    if ax is None:
-        fig, ax = plt.subplots();
-    for i, trace in enumerate(traces):
-        p = ax.plot(trace[:, idx1], trace[:, idx2], label=f'Chain {i + 1}');
-        ax.scatter(theta_inits[i][idx1], theta_inits[i][idx2], color=p[0].get_color(), marker='x');
-        ax.set_xlabel(f'$x_{idx1 + 1}$');
-        ax.set_ylabel(f'$x_{idx2 + 1}$');
-    ax.legend();
-
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
@@ -653,7 +611,14 @@ def grad_log_posterior(theta):
 grad_log_posterior(theta)
 
 # %% [markdown]
-# ## Sequential calculation of gradients
+# ## Parallel calculation of gradients
+
+# %% [markdown]
+# We note that calculating gradients after a MCMC run is what is called "embarrassingly parallelisable" and the time required for this step can be effectively eliminated given sufficient computational resources. This is in contrast to the MCMC run itself, which is inherently sequential.
+#
+# Here we demonstrate how the popular package ``Dask`` can be used to parallelise this computation across cores of a local machine.
+#
+# See the notebook in ``examples/Dask_AWS.ipynb`` for a comparison between sequential calculation, parallel computation locally and on AWS.
 
 # %% [markdown]
 # We can save time by calculating the gradients for unique samples only:
@@ -664,25 +629,7 @@ unique_samples.shape
 
 # %%
 # %%time
-grad = np.apply_along_axis(grad_log_posterior, 1, unique_samples)
-
-# %% [markdown]
-# ## Parallel calculation of gradients
-
-# %% [markdown]
-# We note that calculating gradients after a MCMC run is what is called "embarrassingly parallelisable" and the time required for this step can be effectively eliminated given sufficient computational resources. This is in contrast to the MCMC run itself, which is inherently sequential.
-#
-# Here we demonstrate how the popular package ``Dask`` can be used to parallelise this computation on AWS with 10 worker nodes.
-
-# %%
-# %%time
-grad_parallel = apply_along_axis_parallel(grad_log_posterior, 1, unique_samples, 15_000, client)
-
-# %% [markdown]
-# Confirm the values are identical to the sequential run:
-
-# %%
-assert np.max(np.abs((grad_parallel - grad) / grad)) < 1e-6
+grad_parallel = apply_along_axis_parallel(grad_log_posterior, 1, unique_samples, 200, client)
 
 
 # %% [markdown]
