@@ -84,7 +84,7 @@ def plot_paths(
         figure used for plotting        
     """
     if ax is None:
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
     for i, trace in enumerate(traces):
         p = ax.plot(trace[:, idx1], trace[:, idx2], label=f'Chain {i + 1}')
         ax.scatter(theta_inits[i][idx1], theta_inits[i][idx2], color=p[0].get_color(), marker='x')

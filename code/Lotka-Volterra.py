@@ -242,12 +242,12 @@ rw_samples = map_parallel(run_rw_sampler, theta_inits, client)
 # Reproduce the first column in Figure S17 from the Supplementary Material:
 
 # %%
-plot_traces(rw_samples)
+plot_traces(rw_samples);
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-plot_paths(rw_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0])
-plot_paths(rw_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1])
+plot_paths(rw_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0]);
+plot_paths(rw_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1]);
 
 
 # %%
@@ -346,12 +346,12 @@ stan_sample = inference_model.sample(
 hmc_samples = extract_chains(stan_sample, 'theta')
 
 # %%
-plot_traces(hmc_samples)
+plot_traces(hmc_samples);
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-plot_paths(hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0])
-plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1])
+plot_paths(hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0]);
+plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1]);
 
 # %%
 [acceptance_rate(sample) for sample in hmc_samples]
