@@ -39,6 +39,7 @@ from stein_thinning.thinning import thin
 
 from utils.parallel import map_parallel, apply_along_axis_parallel
 from utils.plotting import plot_paths, plot_trace, plot_traces
+from utils.sampling import to_arviz
 
 # %%
 import nest_asyncio
@@ -158,15 +159,6 @@ def sample_chain(theta_sampler, theta_init, n_samples):
         trace[i + 1, :] = theta
 
     return trace
-
-
-# %%
-def to_arviz(chains, var_names):
-    """Convert output to arviz format"""
-    assert len(chains) > 0
-    return az.from_dict({
-        var_name: np.stack([chain[:, i] for chain in chains]) for i, var_name in enumerate(var_names)
-    })
 
 
 # %%
