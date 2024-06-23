@@ -10,10 +10,6 @@
 \parindent=25pt
 \parskip 0.10in
 
-% The following commands make it easy to include matlab code
-% into your dissertation
-
-
 \date{}
 \begin{document}
 \thispagestyle{empty}
@@ -50,7 +46,7 @@ United Kingdom\\
 \setcounter{page}{1}
 
 \chapter*{Abstract}
-Some Abstract
+
 
 \tableofcontents
 
@@ -59,7 +55,14 @@ Some Abstract
 Introduction to your project.
 
 \chapter{Background and data}
-One or more chapters presenting the necessary background for the methods you are going to use and discuss and the data you are going to analyse. It should include relevant references, like this: \cite{R}.
+
+\section{Why MCMC algorithms}
+
+\section{Challenges of running MCMC}
+
+\section{Optimal thinning as a solution to burn-in and thinning}
+
+\section{Gradient calculation in optimal thinning}
 
 \chapter{Methodology}
 One or more chapters describing the novel methodology you have developed or implemented or the strategy for model comparisons and assessment. 
@@ -69,11 +72,12 @@ One or more chapters describing the novel methodology you have developed or impl
 The results of your analysis.
 
 \chapter{Conclusions}
-What the reader has learnt from your dissertation and what questions are still open.  
+What the reader has learnt from your dissertation and what questions are still open.
+
 \appendix
 \chapter{Code}
 \label{appendix:code}
- Here you can include relevant bits of the code.
+Here you can include relevant bits of the code.
 
 
 \bibliographystyle{plainnat}
