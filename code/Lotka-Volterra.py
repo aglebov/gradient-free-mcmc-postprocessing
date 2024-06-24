@@ -264,6 +264,9 @@ if save_rw_results:
 # %% [markdown]
 # ## Convergence diagnostics
 
+# %% [markdown]
+# ``arviz`` implements $\hat{R}$ and the expected sample size as recommended in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_. The paper suggests the minimum ESS of 50 for each chain and the threshold value of 1.01 for $\hat{R}$. Based on these thresholds, the chains would be deemed not to have converged:
+
 # %%
 az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
 
@@ -357,6 +360,9 @@ if save_hmc_results:
     for i, sample in enumerate(hmc_samples):
         filepath = Path('../data') / 'generated' / f'hmc_chain_{i}_seed_{rw_seed}.csv'
         np.savetxt(filepath, sample, delimiter=',')
+
+# %%
+Based on the thresholds in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_, the convergence diagnostics in this case do
 
 # %%
 az.summary(az.from_pystan(stan_sample))
