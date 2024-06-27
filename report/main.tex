@@ -6,6 +6,11 @@
 \usepackage{textcomp}
 \usepackage{listings}
 \usepackage[authoryear,round]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{todonotes}
+\usepackage{mathtools}
+
+\newcommand*\diff{\mathop{}\!\mathrm{d}}
 
 \parindent=25pt
 \parskip 0.10in
@@ -52,35 +57,118 @@ United Kingdom\\
 
 
 \chapter*{Introduction}
-Introduction to your project.
 
 \chapter{Background and data}
 
-\section{Why MCMC algorithms}
+\section{Markov chain Monte Carlo}
+
+Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling from complex probability distributions.
+
+The need to sample from a probability distribution arises when analytical expressions are unavailable for quantities of interest, such as for example the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a numerical simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
+
+\todo[inline]{Describe alternatives: the inverse method, accept-reject and importance sampling}
+
+\todo[inline]{Include a simple motivating example}
+
+An MCMC algorithm proceeds by sequentially constructing a chain of samples $x_1$, $x_2$, $\dots$,  where each sample is drawn from a transition distribution $Q$ conditional on the preceding value:
+$$x_{n+1} \sim Q(x_{n+1}|x_n).$$
+The distribution $Q$ is known as the transition kernel and is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $\Pi$:
+$$x_n \xrightarrow[]{d} \Pi \quad\text{as}\quad n \to \infty.$$
+
+Two classical variations of this technique are the Metropolis-Hastings and Gibbs algorithms.
+
+\paragraph{Metropolis-Hastings algorithm.} The algorithm due to \cite{metropolis_equation_1953} and \cite{hastings_monte_1970} uses an auxiliary proposal distribution $q$ to sample a proposed value
+$$x' \sim q(x' | x_n),$$
+which is then accepted with probability
+$$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)} \frac{q(x_n|x')}{q(x'|x_n)}.$$
+If $x'$ is accepted, the algorithm sets $x_{n+1} = x'$, and otherwise $x_{n+1} = x_n$.
+
+\todo[inline]{Consider using a different notation to avoid the confusion between the density of the proposal $q$ and the transition kernel $Q$.}
+
+The common choices for the proposal distribution $q$ are:
+\begin{itemize}
+\item A symmetric proposal satisfying $q(x'|x_n) = q(x_n|x')$, so that the ratio of the two quantities disappears from the expression for the acceptance probability:
+$$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)}.$$
+
+In the special case where $q(x'|x_n) = q(x' - x_n)$ we obtain a random walk proposal:
+$$x' = x_n + Z,$$
+where $Z$ is the distribution of the step taken by the algorithm, e.g. a multivariate normal distribution.
+
+\item An independence proposal satisfying $q(x'|x_n) = q(x')$.
+
+\end{itemize}
+
+\todo[inline]{Cite the ST03 lecture notes or Robert \& Casella}
+
+\paragraph{Gibbs algorithm.} Suppose $x$ is a $d$-dimensional vector and the components $x^{(1)}$, $x^{(2)}$, $\dots$, $x^{(d)}$ can be partitioned in such a way that we can sample the components belonging to each partition while keeping the components in other partitions fixed. That is, let $I_i \subset \{1, \dots, d\}$ with $\cup_{i=1}^k I_i = \{1, \dots, d\}$ for some $k$ and $I_i \cap I_j = \emptyset$ for $i \neq j$, and assume we can sample
+$$x^{(I_i)} \sim f_i\left(x^{(I_i)} | x^{(I_1, \dots, I_{i-1}, I_{i+1}, \dots, I_k)}\right).$$
+The sample $x_{n+1}$ can then be constructed by sequentially sampling for each partition:
+$$x_{n+1}^{(I_i)} \sim f_i\left(x^{(I_i)} | x_{n+1}^{(I_1, \dots, I_{i-1})}, x_n^{(I_{i+1}, \dots, I_k)}\right).$$
+Note that the newly sampled values $x_{n+1}^{(I_1, \dots, I_{i-1})}$ enter the computation for subsequent partitions.
+
+\todo[inline]{Read and cite the original paper for Gibbs sampler}
+
+\todo[inline]{Consider simplifying this description}
+
+\todo[inline]{Mention HMC and other recent variations}
 
 \section{Challenges of running MCMC}
 
+While the asymptotic convergence of MCMC samples to the target distribution is guaranteed, no general guarantee is available for finite samples however, resulting in several interrelated challenges that a practitioner faces when applying this class of algorithms:
+\begin{enumerate}
+\item The choice of a starting point for a chain affects the speed of convergence to the target distribution.
+\item For a multimodal distribution, the algorithm might struggle to move between the modes within a feasible time.
+\item The choice of scale of the step distribution in the random-walk Metropolis-Hastings algorithm is crucial to the algorithm's ability to explore the domain of the target distribution efficiently.
+\item Assessing how close an MCMC chain is to convergence is difficult, since the knowledge about the target distribution often comes from the chain itself.
+\item In order to eliminate the impact of the starting point, it can be useful to discard the initial iterations of an MCMC chain, which are considered as ``burn-in''. Selecting the optimal length of the burn-in period is contingent on being able to detect convergence.
+\item The sequential procedure of constructing a chain induces autocorrelation between the samples, which leads to increased variance of derived estimators.
+\item The large number of samples resulting from an MCMC algorithm needs to be summarised appropriately for subsequent analysis.
+\end{enumerate}
+
+The first three challenges require decisions to be made upfront before running the algorithm or adaptively during its run. In order to address the impact of the starting point, running multiple chains with starting points sampled from an overdispersed distribution is recommended~(\cite{gelman_inference_1992}). This approach has the added benefit of increasing the chance of discovering the modes of the target distribution, although it does not provide a guarantee in this respect. 
+
+Comparing the summary statistics of several chains offers a way to detect a lack of convergence (\cite{gelman_inference_1992,brooks_general_1998,vehtari_rank_normalization_2021}). Alternatively, the comparison can be applied to batches of samples from a single chain (\cite{vats_revisiting_2021}). Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to access the quality of the sample retrospectively.
+
+The scaling of the step distribution in a random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly $\frac{1}{4}$ for proposed samples (\cite{gelman_efficient_1996,gelman_weak_1997,roberts_optimal_2001}).
+
+The last three challenges are typically addressed by post-processing a sample from a completed MCMC run. A recent proposal by~\cite{riabiz_optimal_2022} addresses these challenges by selecting a fixed-size subset of samples from an MCMC run such that the empirical distribution given by the subset best approximates the distribution resulting from the full sample. In the following section, we consider their approach in greater detail.
+
+\todo[inline]{Read and cite Cowles and Carlin (1996) regarding the choice of burn-in length.}
+
 \section{Optimal thinning as a solution to burn-in and thinning}
 
-\section{Gradient calculation in optimal thinning}
+Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation of length $n$, \cite{riabiz_optimal_2022} set out to identify $m < n$ indices $\pi(j) \in \{1,\dots, n\}$ such that the approximation provided by the subset of samples
+$$\frac{1}{m} \sum_{j=1}^m \delta(X_{\pi(j)})$$
+is closest to the approximation given by the full set
+$$\frac{1}{n} \sum_{i=1}^n \delta(X_i)$$
+in the sense of minimising the kernel Stein discrepancy between the two distributions.
+
+The kernel Stein discrepancy is a special case case of an integral probability measure, which is defined for two distributions $P$ and $Q$ on the same measurable space $\mathcal{X}$ as
+$$\mathcal{D}_{\mathcal{F}}(P, Q) \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff Q \right|.$$
+
+Using the Langevin Stein operator 
+$$\mathcal{A}_P \mathrm{g} \coloneq p^{-1} \nabla \dot (p \mathrm{g})$$
+for $\mathrm{g} \in \mathcal{G}$, where
+$$\mathcal{G} \coloneq \left\{ \mathrm{g} : \mathbb{R}^d \to \mathbb{R}^d \left| \sum_{i=1}^d \|g_i\|^2_{\mathcal{H}(k)} \leq 1 \right.\right\}$$
+is a unit-ball in a Cartesian product of $d$ copies of a reproducing kernel Hilbert space (RKHS) $\mathcal{H}(k)$ associated with kernel $k$, and taking $\mathcal{F} = \mathcal{A}_P \mathcal{G}$.
+
+\todo[inline]{Finish up this section}
+
+\section{Data}
+
+\todo[inline]{Describe the synthetic data}
 
 \chapter{Methodology}
-One or more chapters describing the novel methodology you have developed or implemented or the strategy for model comparisons and assessment. 
-
 
 \chapter{Results}
-The results of your analysis.
 
 \chapter{Conclusions}
-What the reader has learnt from your dissertation and what questions are still open.
 
 \appendix
 \chapter{Code}
 \label{appendix:code}
-Here you can include relevant bits of the code.
 
-
-\bibliographystyle{plainnat}
+\bibliographystyle{plainnat_modified}
 \bibliography{biblio}
 
 \end{document}
