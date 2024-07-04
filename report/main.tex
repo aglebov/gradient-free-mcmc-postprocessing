@@ -77,7 +77,7 @@ $$x_n \xrightarrow[]{d} \Pi \quad\text{as}\quad n \to \infty.$$
 
 Two classical variations of this technique are the Metropolis-Hastings and Gibbs algorithms.
 
-\paragraph{Metropolis-Hastings algorithm.} The algorithm due to \cite{metropolis_equation_1953} and \cite{hastings_monte_1970} uses an auxiliary proposal distribution $q$ to sample a proposed value
+\paragraph{Metropolis-Hastings algorithm.} The algorithm due to \cite{metropolisEquationStateCalculations1953} and \cite{hastingsMonteCarloSampling1970} uses an auxiliary proposal distribution $q$ to sample a proposed value
 $$x' \sim q(x' | x_n),$$
 which is then accepted with probability
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)} \frac{q(x_n|x')}{q(x'|x_n)}.$$
@@ -125,19 +125,19 @@ While the asymptotic convergence of MCMC samples to the target distribution is g
 \item The large number of samples resulting from an MCMC algorithm needs to be summarised appropriately for subsequent analysis.
 \end{enumerate}
 
-The first three challenges require decisions to be made upfront before running the algorithm or adaptively during its run. In order to address the impact of the starting point, running multiple chains with starting points sampled from an overdispersed distribution is recommended~(\cite{gelman_inference_1992}). This approach has the added benefit of increasing the chance of discovering the modes of the target distribution, although it does not provide a guarantee in this respect. 
+The first three challenges require decisions to be made upfront before running the algorithm or adaptively during its run. In order to address the impact of the starting point, running multiple chains with starting points sampled from an overdispersed distribution is recommended~(\cite{gelmanInferenceIterativeSimulation1992}). This approach has the added benefit of increasing the chance of discovering the modes of the target distribution, although it does not provide a guarantee in this respect. 
 
-Comparing the summary statistics of several chains offers a way to detect a lack of convergence (\cite{gelman_inference_1992,brooks_general_1998,vehtari_rank_normalization_2021}). Alternatively, the comparison can be applied to batches of samples from a single chain (\cite{vats_revisiting_2021}). Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to access the quality of the sample retrospectively.
+Comparing the summary statistics of several chains offers a way to detect a lack of convergence (\cite{gelmanInferenceIterativeSimulation1992,brooksGeneralMethodsMonitoring1998,vehtariRankNormalizationFoldingLocalization2021}). Alternatively, the comparison can be applied to batches of samples from a single chain (\cite{vatsRevisitingGelmanRubin2021}). Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to access the quality of the sample retrospectively.
 
-The scaling of the step distribution in a random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly $\frac{1}{4}$ for proposed samples (\cite{gelman_efficient_1996,gelman_weak_1997,roberts_optimal_2001}).
+The scaling of the step distribution in a random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly $\frac{1}{4}$ for proposed samples (\cite{gelmanEfficientMetropolisJumping1996,gelmanWeakConvergenceOptimal1997,robertsOptimalScalingVarious2001}).
 
-The last three challenges are typically addressed by post-processing a sample from a completed MCMC run. A recent proposal by~\cite{riabiz_optimal_2022} addresses these challenges by selecting a fixed-size subset of samples from an MCMC run such that the empirical distribution given by the subset best approximates the distribution resulting from the full sample. In the following section, we consider their approach in greater detail.
+The last three challenges are typically addressed by post-processing a sample from a completed MCMC run. A recent proposal by~\cite{riabizOptimalThinningMCMC2022} addresses these challenges by selecting a fixed-size subset of samples from an MCMC run such that the empirical distribution given by the subset best approximates the distribution resulting from the full sample. In the following section, we consider their approach in greater detail.
 
 \todo[inline]{Read and cite Cowles and Carlin (1996) regarding the choice of burn-in length.}
 
 \section{Optimal thinning as a solution to burn-in and thinning}
 
-Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation of length $n$, \cite{riabiz_optimal_2022} set out to identify $m < n$ indices $\pi(j) \in \{1,\dots, n\}$ such that the approximation provided by the subset of samples
+Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation of length $n$, \cite{riabizOptimalThinningMCMC2022} set out to identify $m < n$ indices $\pi(j) \in \{1,\dots, n\}$ such that the approximation provided by the subset of samples
 $$\frac{1}{m} \sum_{j=1}^m \delta(X_{\pi(j)})$$
 is closest to the approximation given by the full set
 $$\frac{1}{n} \sum_{i=1}^n \delta(X_i)$$
