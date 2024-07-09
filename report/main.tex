@@ -11,6 +11,7 @@
 \usepackage{mathtools}
 
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
+\DeclareMathOperator{\trace}{trace}
 
 \parindent=25pt
 \parskip 0.10in
@@ -70,33 +71,28 @@ The need to sample from a probability distribution arises when analytical expres
 
 \todo[inline]{Include a simple motivating example}
 
-An MCMC algorithm proceeds by sequentially constructing a chain of samples $x_1$, $x_2$, $\dots$,  where each sample is drawn from a transition distribution $Q$ conditional on the preceding value:
+An MCMC algorithm proceeds by sequentially constructing a chain of samples\footnote{These are also sometimes called ``draws''. In this report, we follow the literature in using the term ``sample'' both for a single element in an MCMC chain and for all such elements taken together as a sample from the target distribution.} $x_1$, $x_2$, $\dots$,  where each sample is drawn from a transition distribution $Q$ conditional on the preceding value:
 $$x_{n+1} \sim Q(x_{n+1}|x_n).$$
 The distribution $Q$ is known as the transition kernel and is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $\Pi$:
 $$x_n \xrightarrow[]{d} \Pi \quad\text{as}\quad n \to \infty.$$
 
 Two classical variations of this technique are the Metropolis-Hastings and Gibbs algorithms.
 
-\paragraph{Metropolis-Hastings algorithm.} The algorithm due to \cite{metropolisEquationStateCalculations1953} and \cite{hastingsMonteCarloSampling1970} uses an auxiliary proposal distribution $q$ to sample a proposed value
+\paragraph{Metropolis-Hastings algorithm.} The algorithm due to \cite{metropolisEquationStateCalculations1953} and \cite{hastingsMonteCarloSampling1970} uses an auxiliary distribution $q$ to sample a proposed value
 $$x' \sim q(x' | x_n),$$
 which is then accepted with probability
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)} \frac{q(x_n|x')}{q(x'|x_n)}.$$
-If $x'$ is accepted, the algorithm sets $x_{n+1} = x'$, and otherwise $x_{n+1} = x_n$.
+If $x'$ is accepted, the algorithm sets $x_{n+1} = x'$. If $x'$ is rejected, the value remains unchanged: $x_{n+1} = x_n$.
 
 \todo[inline]{Consider using a different notation to avoid the confusion between the density of the proposal $q$ and the transition kernel $Q$.}
 
-The common choices for the proposal distribution $q$ are:
-\begin{itemize}
-\item A symmetric proposal satisfying $q(x'|x_n) = q(x_n|x')$, so that the ratio of the two quantities disappears from the expression for the acceptance probability:
+The common choice for the proposal distribution $q$ is a symmetric proposal satisfying $q(x'|x_n) = q(x_n|x')$, so that the ratio of these two quantities disappears from the expression for the acceptance probability:
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)}.$$
-
 In the special case where $q(x'|x_n) = q(x' - x_n)$ we obtain a random walk proposal:
 $$x' = x_n + Z,$$
-where $Z$ is the distribution of the step taken by the algorithm, e.g. a multivariate normal distribution.
+where $Z$ is the distribution of the step taken by the algorithm, e.g. a multivariate normal distribution. The operation of the algorithm then resembles a random walk across the domain of the target distribution where steps towards areas of lower probability are more likely to be rejected. The scale of the step distribution $Z$ determines the average size of the jump that the algorithm can make in one iteration and thus the speed of traversal of the target domain.
 
-\item An independence proposal satisfying $q(x'|x_n) = q(x')$.
-
-\end{itemize}
+An alternative to symmetric proposals is an independence proposal satisfying $q(x'|x_n) = q(x')$.
 
 \todo[inline]{Cite the ST03 lecture notes or Robert \& Casella}
 
@@ -114,20 +110,20 @@ Note that the newly sampled values $x_{n+1}^{(I_1, \dots, I_{i-1})}$ enter the c
 
 \section{Challenges of running MCMC}
 
-While the asymptotic convergence of MCMC samples to the target distribution is guaranteed, no general guarantee is available for finite samples however, resulting in several interrelated challenges that a practitioner faces when applying this class of algorithms:
+While the asymptotic convergence of MCMC samples to the target distribution is guaranteed, no general guarantee is available for finite samples, resulting in several interrelated challenges that a practitioner faces when applying this class of algorithms:
 \begin{enumerate}
 \item The choice of a starting point for a chain affects the speed of convergence to the target distribution.
 \item For a multimodal distribution, the algorithm might struggle to move between the modes within a feasible time.
-\item The choice of scale of the step distribution in the random-walk Metropolis-Hastings algorithm is crucial to the algorithm's ability to explore the domain of the target distribution efficiently.
+\item The scale of the step distribution in the random-walk Metropolis-Hastings algorithm must be calibrated to ensure that the algorithm is able to explore the domain of the target distribution efficiently.
 \item Assessing how close an MCMC chain is to convergence is difficult, since the knowledge about the target distribution often comes from the chain itself.
 \item In order to eliminate the impact of the starting point, it can be useful to discard the initial iterations of an MCMC chain, which are considered as ``burn-in''. Selecting the optimal length of the burn-in period is contingent on being able to detect convergence.
 \item The sequential procedure of constructing a chain induces autocorrelation between the samples, which leads to increased variance of derived estimators.
-\item The large number of samples resulting from an MCMC algorithm needs to be summarised appropriately for subsequent analysis.
+\item The large number of samples resulting from an MCMC algorithm needs to be summarised for subsequent analysis. This is particularly important when the samples are used as inputs for further computation which is too expensive or impractical to run for each available sample.
 \end{enumerate}
 
 The first three challenges require decisions to be made upfront before running the algorithm or adaptively during its run. In order to address the impact of the starting point, running multiple chains with starting points sampled from an overdispersed distribution is recommended~(\cite{gelmanInferenceIterativeSimulation1992}). This approach has the added benefit of increasing the chance of discovering the modes of the target distribution, although it does not provide a guarantee in this respect. 
 
-Comparing the summary statistics of several chains offers a way to detect a lack of convergence (\cite{gelmanInferenceIterativeSimulation1992,brooksGeneralMethodsMonitoring1998,vehtariRankNormalizationFoldingLocalization2021}). Alternatively, the comparison can be applied to batches of samples from a single chain (\cite{vatsRevisitingGelmanRubin2021}). Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to access the quality of the sample retrospectively.
+Comparing the summary statistics of several chains offers a way to detect a lack of convergence if those statistics are significantly different (\cite{gelmanInferenceIterativeSimulation1992,brooksGeneralMethodsMonitoring1998,vehtariRankNormalizationFoldingLocalization2021}). Alternatively, the comparison can be applied to batches of samples from a single chain (\cite{vatsRevisitingGelmanRubin2021}). Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to assess the quality of the sample retrospectively.
 
 The scaling of the step distribution in a random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly $\frac{1}{4}$ for proposed samples (\cite{gelmanEfficientMetropolisJumping1996,gelmanWeakConvergenceOptimal1997,robertsOptimalScalingVarious2001}).
 
@@ -165,8 +161,97 @@ is a unit-ball in a Cartesian product of $d$ copies of a reproducing kernel Hilb
 \chapter{Conclusions}
 
 \appendix
+\chapter{Derivations}
+\label{appendix:derivations}
+
+Given a kernel $k(x,y)$, the corresponding Stein kernel is
+\begin{equation}
+\begin{aligned}
+k_P(x, y) \coloneq 
+&\nabla_x\cdot\nabla_y k(x,y) \\
+&+ \langle \nabla_x k(x, y), \nabla_y \log p(y) \rangle + \langle \nabla_y k(x, y), \nabla_x \log p(x) \rangle \\
+&+ k(x, y) \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle,
+\label{eq:appx:deriv:stein-kernel}
+\end{aligned}
+\end{equation}
+where $\nabla_x$ and $\nabla_y$ are gradients w.r.t.\ $x$ and $y$ and the operator $\nabla_x\cdot\nabla_y$ is given by:
+$$\nabla_x\cdot\nabla_y k(x,y) = \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} k(x, y).$$
+
+\todo[inline]{Add citation for the Stein kernel formula}
+\todo[inline]{Expand this to describe how the Stein operator translates to a new RKHS.}
+
+For the inverse multiquadratic kernel
+\begin{equation}
+\begin{split}
+k(x, y)
+&= \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta \\
+&=\left(c^2 + (x-y)^T \Gamma^{-1}(x-y)\right)^\beta \\
+&=\left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^\beta \\
+\end{split}
+\end{equation}
+we have
+\begin{equation}
+\begin{aligned}
+\frac{\partial}{\partial x_r} k(x,y) 
+%&= \beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \\
+%&\times \left( \sum_{j=1}^d \Gamma^{-1}_{lj}(x_j - y_j) + \sum_{i=1}^d (x_i - x_j) \Gamma^{-1}_{il} \right) \\
+&= \beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \\
+&\times \sum_{j=1}^d (\Gamma^{-1} + \Gamma^{-T})_{rj}(x_j - y_j) \\
+&= 2 \beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1}
+\sum_{j=1}^d \Gamma^{-1}_{rj}(x_j - y_j), \\
+\end{aligned}
+\end{equation}
+where we used that $\Gamma$ is a symmetric matrix. The gradient is then
+\begin{equation}
+\nabla_x k(x,y) = 2 \beta \left(c^2 + \| \Gamma^{-1/2} (x-y)\|^2\right)^{\beta-1} \Gamma^{-1} (x - y).
+\label{eq:appx:deviv:nablax}
+\end{equation}
+and similarly
+\begin{equation}
+\nabla_y k(x,y) = -2 \beta \left(c^2 + \| \Gamma^{-1/2} (x-y)\|^2\right)^{\beta-1} \Gamma^{-1} (x - y).
+\label{eq:appx:deviv:nablay}
+\end{equation}
+Now
+\begin{equation}
+\begin{aligned}
+\frac{\partial^2}{\partial x_r\,\partial y_r} k(x,y) 
+&= -4 \beta(\beta-1) \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-2} \\
+&\times \left(\sum_{j=1}^d \Gamma^{-1}_{rj}(x_j - y_j)\right)^2 \\
+&- 2\beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \Gamma^{-1}_{rr}
+\end{aligned}
+\end{equation}
+which gives us
+\begin{equation}
+\begin{aligned}
+\nabla_x \cdot \nabla_y k(x,y) 
+&= -4 \beta(\beta-1) \left(c^2 + \| \Gamma^{-1/2}(x-y)\|^2\right)^{\beta-2} \| \Gamma^{-1}(x - y)\|^2 \\
+&- 2\beta \left(c^2 + \|\Gamma^{-1/2}(x-y)\|^2\right)^{\beta-1} \trace(\Gamma^{-1})
+\label{eq:appx:deriv:nablax_nablay}
+\end{aligned}
+\end{equation}
+
+Substituting (\ref{eq:appx:deviv:nablax}), (\ref{eq:appx:deviv:nablay}) and (\ref{eq:appx:deriv:nablax_nablay}) into (\ref{eq:appx:deriv:stein-kernel}), we obtain
+\begin{equation}
+\begin{aligned}
+k_P(x, y)
+= &-4 \beta(\beta-1) \left(c^2 + \| \Gamma^{-1/2}(x-y)\|^2\right)^{\beta-2} \| \Gamma^{-1}(x - y)\|^2 \\
+&- 2\beta \left(c^2 + \|\Gamma^{-1/2}(x-y)\|^2\right)^{\beta-1} \trace(\Gamma^{-1}) \\
+&+ 2 \beta \left(c^2 + \| \Gamma^{-1/2} (x-y)\|^2\right)^{\beta-1} \langle \Gamma^{-1} (x - y), \nabla_y \log p(y)\rangle \\
+&- 2 \beta \left(c^2 + \| \Gamma^{-1/2} (x-y)\|^2\right)^{\beta-1} \langle \Gamma^{-1} (x - y), \nabla_x \log p(x)\rangle \\
+&+ \left(c^2 + \| \Gamma^{-1/2} (x-y)\|^2\right)^\beta \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle \\
+= &-4 \beta(\beta-1) D^{\beta-2} \| \Gamma^{-1}(x - y)\|^2  \\
+&- 2 \beta D^{\beta-1} (\trace(\Gamma^{-1}) + \langle \Gamma^{-1} (x - y), \nabla_x \log p(x) - \nabla_y \log p(y)\rangle) \\
+&+ D^\beta \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle, \\
+\end{aligned}
+\end{equation}
+where we have denoted $D = c^2 + \| \Gamma^{-1/2}(x-y)\|^2$.
+
+
+\appendix
 \chapter{Code}
 \label{appendix:code}
+
+
 
 \bibliographystyle{plainnat_modified}
 \bibliography{biblio}
