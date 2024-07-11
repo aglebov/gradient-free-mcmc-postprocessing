@@ -19,6 +19,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from scipy.stats import multivariate_normal as mvn
+import dcor
 
 from jax import grad
 import jax.numpy as jnp
@@ -311,15 +312,8 @@ for i, (idx, title) in enumerate(entries):
     ax.scatter(sample[idx, 0], sample[idx, 1], color='red');
     ax.set_title(title);
 
-
 # %% [markdown]
 # Compare the energy distance to the full posterior sample:
 
 # %%
-def energy_distance(x, y):
-    """Energy distance based on Szekely & Rizzo (2015) Energy distance"""
-    return np.sqrt(2 * np.mean(cdist(x, y)) - np.mean(cdist(x, x)) - np.mean(cdist(y, y)))
-
-
-# %%
-create_table(lambda idx: energy_distance(sample[idx], sample), entries)
+create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample)), entries)
