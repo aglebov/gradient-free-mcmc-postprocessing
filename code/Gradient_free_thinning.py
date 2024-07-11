@@ -17,7 +17,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import scipy
+from scipy.spatial.distance import cdist
 from scipy.stats import multivariate_normal as mvn
 
 from jax import grad
@@ -53,10 +53,15 @@ def make_mvn_mixture(weights, means, covs):
     
     def rvs(size, random_state):
         component_samples = [
-            mvn.rvs(mean=means[i], cov=covs[i], size=size, random_state=random_state) for i in range(len(weights))
+            mvn.rvs(mean=means[i], cov=covs[i], size=size, random_state=random_state)
+            for i in range(len(weights))
         ]
         indices = rng.choice(len(weights), size=size, p=weights)
-        return np.take_along_axis(np.stack(component_samples, axis=1), indices.reshape(size, 1, 1), axis=1).squeeze()
+        return np.take_along_axis(
+            np.stack(component_samples, axis=1),
+            indices.reshape(size, 1, 1),
+            axis=1
+        ).squeeze()
 
     def logpdf(x):
         f = np.stack([mvn.pdf(x, mean=means[i], cov=covs[i]) for i in range(len(weights))])
@@ -74,7 +79,11 @@ def make_mvn_mixture(weights, means, covs):
         return -num / den[:, np.newaxis]
     
     def logpdf_jax(x):
-        probs = jmvn.pdf(x.reshape(-1, 1, d), mean=means.reshape(1, k, d), cov=covs.reshape(1, k, d, d))
+        probs = jmvn.pdf(
+            x.reshape(-1, 1, d),
+            mean=means.reshape(1, k, d),
+            cov=covs.reshape(1, k, d, d)
+        )
         return jnp.squeeze(jnp.log(jnp.sum(weights * probs, axis=1)))
     
     return rvs, logpdf, score, logpdf_jax
@@ -111,10 +120,27 @@ rng = np.random.default_rng(12345)
 sample_size = 1000
 sample = rvs(sample_size, random_state=rng)
 
+
 # %%
-fig, ax = plt.subplots()
-ax.scatter(sample[:, 0], sample[:, 1], alpha=0.3);
-ax.set_title('Sample from a multivariate Gaussian mixture');
+def plot_density(logpdf, ax, xlim, ylim, title, mesh_size=100, levels=100):
+    x = np.linspace(*xlim, mesh_size)
+    y = np.linspace(*ylim, mesh_size)
+    xy = np.moveaxis(np.stack(np.meshgrid(x, y)), 0, 2).reshape(mesh_size * mesh_size, 2)
+    z = np.exp(logpdf(xy)).reshape(mesh_size, mesh_size)
+
+    ax.contourf(x, y, z, levels=levels);
+    ax.set_title(title);
+
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+axs[0].scatter(sample[:, 0], sample[:, 1], alpha=0.3);
+axs[0].set_title('Sample from a multivariate Gaussian mixture');
+
+xlim = axs[0].get_xlim()
+ylim = axs[0].get_ylim()
+
+plot_density(logpdf, axs[1], xlim, ylim, 'Mixture density')
 
 # %% [markdown]
 # Verify log-pdf against the JAX implementation:
@@ -201,6 +227,14 @@ idx_gf = thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
 # %%
 kde = jgaussian_kde(sample.T, bw_method='silverman')
 
+# %% [markdown]
+# We plot the KDE density against the true mixture density:
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+plot_density(lambda x: kde.logpdf(x.T), axs[0], xlim, ylim, 'KDE');
+plot_density(logpdf, axs[1], xlim, ylim, 'Mixture density');
+
 
 # %% [markdown]
 # For simplicity, we obtain the gradient by numerical differentiation. Since the default choice of kernel for KDE is Gaussian, we could also obtain the gradient explicitly.
@@ -229,6 +263,14 @@ idx_gf_kde = thin_gf(sample, log_p, log_q_kde, gradient_q_kde, thinned_size)
 wkde = jgaussian_kde(sample.T, bw_method='silverman', weights=w)
 log_q_wkde, gradient_q_wkde = logpdf_and_score(wkde, sample)
 
+# %% [markdown]
+# We plot the resulting KDE density against the true mixture density:
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+plot_density(lambda x: wkde.logpdf(x.T), axs[0], xlim, ylim, 'Weighted KDE');
+plot_density(logpdf, axs[1], xlim, ylim, 'Mixture density');
+
 # %%
 idx_gf_wkde = thin_gf(sample, log_p, log_q_wkde, gradient_q_wkde, thinned_size)
 
@@ -244,11 +286,17 @@ entries = [
     (idx_gf_wkde, 'Gradient-free Stein thinning: weighted KDE proxy'),
 ]
 
+
 # %% [markdown]
 # The number of unique point selected:
 
 # %%
-pd.Series([len(np.unique(idx)) for idx, _ in entries], index=[title for _, title in entries])
+def create_table(idx_func, entries):
+    return pd.Series([idx_func(idx) for idx, _ in entries], index=[title for _, title in entries])
+
+
+# %%
+create_table(lambda idx: len(np.unique(idx)), entries)
 
 # %% [markdown]
 # Plot the selected points:
@@ -262,3 +310,16 @@ for i, (idx, title) in enumerate(entries):
     ax.scatter(sample[:, 0], sample[:, 1], alpha=0.3, color='gray');
     ax.scatter(sample[idx, 0], sample[idx, 1], color='red');
     ax.set_title(title);
+
+
+# %% [markdown]
+# Compare the energy distance to the full posterior sample:
+
+# %%
+def energy_distance(x, y):
+    """Energy distance based on Szekely & Rizzo (2015) Energy distance"""
+    return np.sqrt(2 * np.mean(cdist(x, y)) - np.mean(cdist(x, x)) - np.mean(cdist(y, y)))
+
+
+# %%
+create_table(lambda idx: energy_distance(sample[idx], sample), entries)
