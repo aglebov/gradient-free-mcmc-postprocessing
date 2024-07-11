@@ -15,6 +15,7 @@
 
 # %%
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import scipy
 from scipy.stats import multivariate_normal as mvn
@@ -28,7 +29,7 @@ from stein_thinning.thinning import thin, thin_gf
 
 
 # %% [markdown]
-# ### Generate from a multivariate normal mixture model
+# ## Generate from a multivariate normal mixture model
 
 # %% [markdown]
 # For multivariate normal distributions with pdfs
@@ -135,17 +136,44 @@ gradient_jax = jnp.apply_along_axis(score_jax, 1, sample)
 np.testing.assert_array_almost_equal(gradient, gradient_jax)
 
 # %% [markdown]
-# ### Apply Stein thinning
+# ## Thinning
+
+# %% [markdown]
+# Our aim here is to select a subsample of the posterior sample that best represents the posterior distribution.
 
 # %%
 thinned_size = 40
-idx_stein = thin(sample, gradient, thinned_size)
+
+# %% [markdown]
+# ### Importance resampling
+
+# %% [markdown]
+# The easiest way to obtain a subsample from the posterior sample is importance resampling. In this case, each point is selected independently.
+#
+# For resampling, we need need the posterior probability for each sample point:
+
+# %%
+log_p = logpdf(sample)
+p = np.exp(log_p)
+
+# %%
+w = p / np.sum(p)
+idx_ir = rng.choice(np.arange(sample.shape[0]), size=thinned_size, p=w)
+
+# %% [markdown]
+# ### Stein thinning
+
+# %% [markdown]
+# If the gradient of the log-posterior is available, we can use it to perform thinning based on kernel Stein discrepancy:
+
+# %%
+idx_st = thin(sample, gradient, thinned_size)
 
 # %% [markdown]
 # ### Simple gradient-free Stein thinning
 
 # %% [markdown]
-# Define a proxy distribution to be the multivariate normal with the same mean and covariance matrices as the sample mean and covariance:
+# When the gradient of the log-posterior is not available, we can resort to a gradient-free approximation. This requires us to select a proxy distribution whose gradient is easily computable. The simplest option is to select a multivariate Gaussian with moments matching the sample:
 
 # %%
 sample_mean = np.mean(sample, axis=0)
@@ -159,12 +187,6 @@ log_q = mvn.logpdf(sample, mean=sample_mean, cov=sample_cov)
 gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(sample_cov), sample - sample_mean)
 
 # %% [markdown]
-# We also need the log-pdf of the target distribution:
-
-# %%
-log_p = logpdf(sample)
-
-# %% [markdown]
 # We get the indices of the points to select:
 
 # %%
@@ -173,34 +195,70 @@ idx_gf = thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
 # %% [markdown]
 # ### Gradient-free Stein thinning with a KDE proxy
 
+# %% [markdown]
+# We can obtain a better approximation of the posterior with a KDE of the sample:
+
 # %%
 kde = jgaussian_kde(sample.T, bw_method='silverman')
 
 
+# %% [markdown]
+# For simplicity, we obtain the gradient by numerical differentiation. Since the default choice of kernel for KDE is Gaussian, we could also obtain the gradient explicitly.
+
 # %%
-def kde_log_pdf(x):
-    return kde.logpdf(x)[0]
+def logpdf_and_score(kde, sample):
+    log_q = np.array(kde.logpdf(sample.T))
+    kde_grad = grad(lambda x: kde.logpdf(x)[0])
+    gradient_q = np.array(jnp.apply_along_axis(kde_grad, 1, sample))
+    return log_q, gradient_q
 
 
 # %%
-log_q_kde = np.array(kde.logpdf(sample.T))
-gradient_q_kde = np.array(jnp.apply_along_axis(grad(kde_log_pdf), 1, sample))
+log_q_kde, gradient_q_kde = logpdf_and_score(kde, sample)
 
 # %%
 idx_gf_kde = thin_gf(sample, log_p, log_q_kde, gradient_q_kde, thinned_size)
 
 # %% [markdown]
-# Plot the results:
+# ### Gradient-free Stein thinning with a weighted KDE proxy
+
+# %% [markdown]
+# A further improvement on the KDE approach is to use the posterior probabilities of the sample points as weights in the KDE approximation:
+
+# %%
+wkde = jgaussian_kde(sample.T, bw_method='silverman', weights=w)
+log_q_wkde, gradient_q_wkde = logpdf_and_score(wkde, sample)
+
+# %%
+idx_gf_wkde = thin_gf(sample, log_p, log_q_wkde, gradient_q_wkde, thinned_size)
+
+# %% [markdown]
+# ### Comparison
 
 # %%
 entries = [
-    (idx_stein, 'Stein thinning'),
-    (idx_gf, 'Gradient-free Stein thinning (simple Gaussian)'),
-    (idx_gf_kde, 'Gradient-free Stein thinning (KDE)'),
+    (idx_ir, 'Importance resampling'),
+    (idx_st, 'Stein thinning'),
+    (idx_gf, 'Gradient-free Stein thinning: Gaussian proxy'),
+    (idx_gf_kde, 'Gradient-free Stein thinning: KDE proxy'),
+    (idx_gf_wkde, 'Gradient-free Stein thinning: weighted KDE proxy'),
 ]
 
-fig, axs = plt.subplots(1, len(entries), figsize=(15, 4));
+# %% [markdown]
+# The number of unique point selected:
+
+# %%
+pd.Series([len(np.unique(idx)) for idx, _ in entries], index=[title for _, title in entries])
+
+# %% [markdown]
+# Plot the selected points:
+
+# %%
+n_cols = 2
+n_rows = (len(entries) - 1) // n_cols + 1
+fig, axs = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4));
 for i, (idx, title) in enumerate(entries):
-    axs[i].scatter(sample[:, 0], sample[:, 1], alpha=0.3, color='gray');
-    axs[i].scatter(sample[idx, 0], sample[idx, 1], color='red');
-    axs[i].set_title(title);
+    ax = axs[i // 2][i % 2]
+    ax.scatter(sample[:, 0], sample[:, 1], alpha=0.3, color='gray');
+    ax.scatter(sample[idx, 0], sample[idx, 1], color='red');
+    ax.set_title(title);
