@@ -313,7 +313,19 @@ for i, (idx, title) in enumerate(entries):
     ax.set_title(title);
 
 # %% [markdown]
+# #### Energy distance
+
+# %% [markdown]
 # Compare the energy distance to the full posterior sample:
 
 # %%
 create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample)), entries)
+
+# %% [markdown]
+# To evaluate how well the thinned sample approximates the true distribution, we draw a new sample from the distribution and calculate the energy distance:
+
+# %%
+sample2 = rvs(sample_size, random_state=rng)
+
+# %%
+create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample2)), entries)
