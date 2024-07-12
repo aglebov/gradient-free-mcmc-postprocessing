@@ -197,7 +197,7 @@ idx_ir = rng.choice(np.arange(sample.shape[0]), size=thinned_size, p=w)
 idx_st = thin(sample, gradient, thinned_size)
 
 # %% [markdown]
-# ### Simple gradient-free Stein thinning
+# ### Gradient-free Stein thinning with a simple Gaussian proxy
 
 # %% [markdown]
 # When the gradient of the log-posterior is not available, we can resort to a gradient-free approximation. This requires us to select a proxy distribution whose gradient is easily computable. The simplest option is to select a multivariate Gaussian with moments matching the sample:
