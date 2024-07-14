@@ -59,13 +59,13 @@ United Kingdom\\
 
 \chapter*{Introduction}
 
-\chapter{Background and data}
+\chapter{Background}
 
 \section{Markov chain Monte Carlo}
 
 Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling from complex probability distributions.
 
-The need to sample from a probability distribution arises when analytical expressions are unavailable for quantities of interest, such as for example the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a numerical simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
+The need to sample from a probability distribution arises in exploratory analysis as well as when analytical expressions are unavailable for quantities of interest, such as the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a numerical simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
 
 \todo[inline]{Describe alternatives: the inverse method, accept-reject and importance sampling}
 
@@ -113,19 +113,20 @@ Note that the newly sampled values $x_{n+1}^{(I_1, \dots, I_{i-1})}$ enter the c
 While the asymptotic convergence of MCMC samples to the target distribution is guaranteed, no general guarantee is available for finite samples, resulting in several interrelated challenges that a practitioner faces when applying this class of algorithms:
 \begin{enumerate}
 \item The choice of a starting point for a chain affects the speed of convergence to the target distribution.
-\item For a multimodal distribution, the algorithm might struggle to move between the modes within a feasible time.
-\item The scale of the step distribution in the random-walk Metropolis-Hastings algorithm must be calibrated to ensure that the algorithm is able to explore the domain of the target distribution efficiently.
+\item For a multimodal distribution, the algorithm might struggle to move between the modes within a feasible time. This problem becomes especially acute in high dimensions.
+\item The scale of the proposal distribution must be calibrated to ensure that the algorithm is able to explore the domain of the target distribution efficiently.
 \item Assessing how close an MCMC chain is to convergence is difficult, since the knowledge about the target distribution often comes from the chain itself.
 \item In order to eliminate the impact of the starting point, it can be useful to discard the initial iterations of an MCMC chain, which are considered as ``burn-in''. Selecting the optimal length of the burn-in period is contingent on being able to detect convergence.
 \item The sequential procedure of constructing a chain induces autocorrelation between the samples, which leads to increased variance of derived estimators.
-\item The large number of samples resulting from an MCMC algorithm needs to be summarised for subsequent analysis. This is particularly important when the samples are used as inputs for further computation which is too expensive or impractical to run for each available sample.
+\item The large number of samples resulting from an MCMC algorithm needs to be summarised for subsequent analysis, particularly when the cost of using all available samples is too high. Such situations arise when samples obtained from MCMC are used as starting points for further expensive simulations.
 \end{enumerate}
 
 The first three challenges require decisions to be made upfront before running the algorithm or adaptively during its run. In order to address the impact of the starting point, running multiple chains with starting points sampled from an overdispersed distribution is recommended~(\cite{gelmanInferenceIterativeSimulation1992}). This approach has the added benefit of increasing the chance of discovering the modes of the target distribution, although it does not provide a guarantee in this respect. 
+\todo[inline]{Mention perfect sampling.}
 
-Comparing the summary statistics of several chains offers a way to detect a lack of convergence if those statistics are significantly different (\cite{gelmanInferenceIterativeSimulation1992,brooksGeneralMethodsMonitoring1998,vehtariRankNormalizationFoldingLocalization2021}). Alternatively, the comparison can be applied to batches of samples from a single chain (\cite{vatsRevisitingGelmanRubin2021}). Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to assess the quality of the sample retrospectively.
+Comparing the summary statistics of several chains (\cite{gelmanInferenceIterativeSimulation1992,brooksGeneralMethodsMonitoring1998,vehtariRankNormalizationFoldingLocalization2021}) offers a way to detect a lack of convergence at the cost of additional computation. Alternatively, the comparison can be applied to batches of samples from a single chain, as proposed by \cite{vatsRevisitingGelmanRubin2021}. Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to assess the quality of a sample retrospectively. It should be noted that convergence criteria establish a necessary but not sufficient condition for convergence, so the outcomes need to be interpreted accordingly.
 
-The scaling of the step distribution in a random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly $\frac{1}{4}$ for proposed samples (\cite{gelmanEfficientMetropolisJumping1996,gelmanWeakConvergenceOptimal1997,robertsOptimalScalingVarious2001}).
+The scaling of the step distribution in a random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly 0.234 for proposed samples (\cite{gelmanEfficientMetropolisJumping1996,gelmanWeakConvergenceOptimal1997,robertsOptimalScalingVarious2001}), which balances the speed of traversal and the computational effort generating samples that end up rejected.
 
 The last three challenges are typically addressed by post-processing a sample from a completed MCMC run. A recent proposal by~\cite{riabizOptimalThinningMCMC2022} addresses these challenges by selecting a fixed-size subset of samples from an MCMC run such that the empirical distribution given by the subset best approximates the distribution resulting from the full sample. In the following section, we consider their approach in greater detail.
 
@@ -150,11 +151,16 @@ is a unit-ball in a Cartesian product of $d$ copies of a reproducing kernel Hilb
 
 \todo[inline]{Finish up this section}
 
+\chapter{Methodology}
+
 \section{Data}
 
-\todo[inline]{Describe the synthetic data}
+\section{Evaluating the approximation}
 
-\chapter{Methodology}
+In order to assess how well the selected sample approximates the posterior distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
+$$D^2(F, G) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
+where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
+$$\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.$$
 
 \chapter{Results}
 
