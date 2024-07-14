@@ -26,7 +26,9 @@ import jax.numpy as jnp
 import jax.scipy.stats.multivariate_normal as jmvn
 from jax.scipy.stats import gaussian_kde as jgaussian_kde
 
-from stein_thinning.thinning import thin, thin_gf
+from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _make_stein_gf_integrand
+from stein_thinning.stein import kmat
+from stein_thinning.kernel import make_imq
 
 
 # %% [markdown]
@@ -123,11 +125,11 @@ sample = rvs(sample_size, random_state=rng)
 
 
 # %%
-def plot_density(logpdf, ax, xlim, ylim, title, mesh_size=100, levels=100):
+def plot_density(f, ax, xlim, ylim, title, mesh_size=200, levels=200):
     x = np.linspace(*xlim, mesh_size)
     y = np.linspace(*ylim, mesh_size)
     xy = np.moveaxis(np.stack(np.meshgrid(x, y)), 0, 2).reshape(mesh_size * mesh_size, 2)
-    z = np.exp(logpdf(xy)).reshape(mesh_size, mesh_size)
+    z = f(xy).reshape(mesh_size, mesh_size)
 
     ax.contourf(x, y, z, levels=levels);
     ax.set_title(title);
@@ -141,7 +143,7 @@ axs[0].set_title('Sample from a multivariate Gaussian mixture');
 xlim = axs[0].get_xlim()
 ylim = axs[0].get_ylim()
 
-plot_density(logpdf, axs[1], xlim, ylim, 'Mixture density')
+plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density')
 
 # %% [markdown]
 # Verify log-pdf against the JAX implementation:
@@ -233,8 +235,8 @@ kde = jgaussian_kde(sample.T, bw_method='silverman')
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-plot_density(lambda x: kde.logpdf(x.T), axs[0], xlim, ylim, 'KDE');
-plot_density(logpdf, axs[1], xlim, ylim, 'Mixture density');
+plot_density(lambda x: np.exp(kde.logpdf(x.T)), axs[0], xlim, ylim, 'KDE');
+plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density');
 
 
 # %% [markdown]
@@ -269,8 +271,8 @@ log_q_wkde, gradient_q_wkde = logpdf_and_score(wkde, sample)
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-plot_density(lambda x: wkde.logpdf(x.T), axs[0], xlim, ylim, 'Weighted KDE');
-plot_density(logpdf, axs[1], xlim, ylim, 'Mixture density');
+plot_density(lambda x: np.exp(wkde.logpdf(x.T)), axs[0], xlim, ylim, 'Weighted KDE');
+plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density');
 
 # %%
 idx_gf_wkde = thin_gf(sample, log_p, log_q_wkde, gradient_q_wkde, thinned_size)
@@ -329,3 +331,58 @@ sample2 = rvs(sample_size, random_state=rng)
 
 # %%
 create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample2)), entries)
+
+
+# %% [markdown]
+# #### Performance of weighted KDE
+
+# %% [markdown]
+# We have seen that the performance of the gradient-free algorithm with a weighted KDE is unsatisfactory. The scatter plot of the selected points suggests that the algorithm picks points that have a low probability. We can confirm this by highlighting the points with the lowest probability in the sample:
+
+# %%
+def highlight_points(sample, indices, show_labels=False, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+    ax.scatter(sample[:, 0], sample[:, 1], alpha=0.3, color='gray');
+    ax.scatter(sample[indices, 0], sample[indices, 1], color='red');
+    if show_labels:
+        for i, ind in enumerate(indices):
+            ax.text(sample[ind, 0], sample[ind, 1], str(ind));
+
+
+# %%
+highlight_points(sample, np.argsort(log_q)[:20])
+
+# %% [markdown]
+# The gradient-free integrand includes the multiplier $q(x)/p(x)$. In the plain KDE, $q(x)$ will be proportional to the density of sample points in te vicinity of $x$. Applying weights has the effect of reducing $q(x)$ further, thus penalising the points in the low-probability area twice.
+
+# %% [markdown]
+# Here we compare the values on the diagonal of the integrand matrix, which the algorithm would use in its first step:
+
+# %%
+integrand_st = _make_stein_integrand(sample, gradient)
+integrand_kde = _make_stein_gf_integrand(sample, log_p, log_q_kde, gradient_q_kde)
+integrand_wkde = _make_stein_gf_integrand(sample, log_p, log_q_wkde, gradient_q_wkde)
+
+# %%
+integrands = [integrand_st, integrand_kde, integrand_wkde]
+kmats = [kmat(integrand, sample.shape[0]) for integrand in integrands]
+
+# %%
+titles = ['Standard Stein', 'Gradient-free with KDE', 'Gradient-free with weighted KDE']
+fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+for i, km in enumerate(kmats):
+    highlight_points(sample, np.argsort(np.abs(np.diag(km)))[:20], ax=axs[i])
+    axs[i].set_title(titles[i]);
+
+# %% [markdown]
+# By contrast, the norm of the gradient is reasonably well approximated by both the KDE and the weighted KDE choices:
+
+# %%
+kde_grad = grad(lambda x: kde.logpdf(x)[0])
+wkde_grad = grad(lambda x: wkde.logpdf(x)[0])
+
+fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+plot_density(lambda x: np.linalg.norm(score(x), axis=1), axs[0], xlim, ylim, 'Norm of true gradient');
+plot_density(lambda x: np.linalg.norm(jnp.apply_along_axis(kde_grad, 1, x), axis=1), axs[1], xlim, ylim, 'Norm of KDE gradient');
+plot_density(lambda x: np.linalg.norm(jnp.apply_along_axis(wkde_grad, 1, x), axis=1), axs[2], xlim, ylim, 'Norm of weighted KDE gradient');
