@@ -13,4 +13,6 @@ and
 
 We replicate the results presented from [1] for the Lotka-Volterra model in ``code/Lotka-Volterra.ipynb``.
 
-The ``code`` directory also contains several examples of using the relevant Python packages.
+``code/Gradient_free_thinning.ipynb`` demonstrates using gradient-free kernel Stein density as proposed in [2] for a bivariate Gaussian mixture.
+
+The ``code/examples`` directory also contains several examples of using the relevant Python packages.
