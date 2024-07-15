@@ -45,6 +45,13 @@ from utils.sampling import to_arviz
 import nest_asyncio
 nest_asyncio.apply()
 
+# %%
+recalculate = False  # True => perform expensive calculations, False => use stored results
+save_rw_results = False
+save_hmc_results = False
+save_rw_gradients = False
+save_hmc_gradients = False
+
 # %% [markdown]
 # We create a Dask client in order to parallelise calculations where possible:
 
@@ -228,7 +235,17 @@ def run_rw_sampler(theta_init):
 
 # %%
 # %%time
-rw_samples = map_parallel(run_rw_sampler, theta_inits, client)
+if recalculate:
+    rw_samples = map_parallel(run_rw_sampler, theta_inits, client)
+    if save_rw_results:
+        for i, sample in enumerate(rw_samples):
+            filepath = Path('../data') / 'generated' / f'rw_chain_{i}_seed_{rw_seed}.csv'
+            np.savetxt(filepath, sample, delimiter=',')
+else:
+    rw_samples = []
+    for i in range(len(theta_inits)):
+        filepath = Path('../data') / 'generated' / f'rw_chain_{i}_seed_{rw_seed}.csv'
+        rw_samples.append(np.genfromtxt(filepath, delimiter=','))
 
 # %% [markdown]
 # Reproduce the first column in Figure S17 from the Supplementary Material:
@@ -252,22 +269,13 @@ def acceptance_rate(sample):
 [acceptance_rate(sample) for sample in rw_samples]
 
 # %% [markdown]
-# Save traces for future analysis:
-
-# %%
-save_rw_results = False
-if save_rw_results:
-    for i, sample in enumerate(rw_samples):
-        filepath = Path('../data') / 'generated' / f'rw_chain_{i}_seed_{rw_seed}.csv'
-        np.savetxt(filepath, sample, delimiter=',')
-
-# %% [markdown]
 # ## Convergence diagnostics
 
 # %% [markdown]
 # ``arviz`` implements $\hat{R}$ and the expected sample size as recommended in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_. The paper suggests the minimum ESS of 50 for each chain and the threshold value of 1.01 for $\hat{R}$. Based on these thresholds, the chains would be deemed not to have converged:
 
 # %%
+# %%time
 az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
 
 # %% [markdown]
@@ -329,16 +337,25 @@ def extract_chains(stan_sample, param):
 
 # %%
 # %%time
-inference_model = stan.build(stan_model_spec, data=data, random_seed=12345)
-stan_sample = inference_model.sample(
-    num_chains=len(theta_inits),
-    num_samples=n_samples_hmc,
-    save_warmup=True,
-    init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
-)
-
-# %%
-hmc_samples = extract_chains(stan_sample, 'theta')
+hmc_seed = 12345
+if recalculate:
+    inference_model = stan.build(stan_model_spec, data=data, random_seed=hmc_seed)
+    stan_sample = inference_model.sample(
+        num_chains=len(theta_inits),
+        num_samples=n_samples_hmc,
+        save_warmup=True,
+        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
+    )
+    hmc_samples = extract_chains(stan_sample, 'theta')
+    if save_hmc_results:
+        for i, sample in enumerate(hmc_samples):
+            filepath = Path('../data') / 'generated' / f'hmc_chain_{i}_seed_{hmc_seed}.csv'
+            np.savetxt(filepath, sample, delimiter=',')
+else:
+    hmc_samples = []
+    for i in range(len(theta_inits)):
+        filepath = Path('../data') / 'generated' / f'hmc_chain_{i}_seed_{hmc_seed}.csv'
+        hmc_samples.append(np.genfromtxt(filepath, delimiter=','))
 
 # %%
 plot_traces(hmc_samples);
@@ -352,20 +369,10 @@ plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1]);
 [acceptance_rate(sample) for sample in hmc_samples]
 
 # %% [markdown]
-# Save traces for further analysis:
+# Based on the thresholds in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_, the diagnostics do not suggest any convergence issues:
 
 # %%
-save_hmc_results = False
-if save_hmc_results:
-    for i, sample in enumerate(hmc_samples):
-        filepath = Path('../data') / 'generated' / f'hmc_chain_{i}_seed_{rw_seed}.csv'
-        np.savetxt(filepath, sample, delimiter=',')
-
-# %%
-Based on the thresholds in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_, the convergence diagnostics in this case do
-
-# %%
-az.summary(az.from_pystan(stan_sample))
+az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
 
 
 # %% [markdown]
@@ -608,6 +615,7 @@ def grad_log_posterior(theta):
 # %%
 grad_log_posterior(theta)
 
+
 # %% [markdown]
 # ## Parallel calculation of gradients
 
@@ -621,32 +629,51 @@ grad_log_posterior(theta)
 # %% [markdown]
 # We can save time by calculating the gradients for unique samples only:
 
-# %%
-unique_samples, inverse_index = np.unique(np.exp(rw_samples[0]), axis=0, return_inverse=True)
-unique_samples.shape
-
-# %%
-# %%time
-grad_parallel = apply_along_axis_parallel(grad_log_posterior, 1, unique_samples, 200, client)
-
-
 # %% [markdown]
 # A helper function to calculate gradients using unique values only:
 
 # %%
 def calculate_gradient(sample, chunk_size=200):
     """Calculate gradients for samples"""
+    # we can save time by calculating gradients for unique samples only
     unique_samples, inverse_index = np.unique(sample, axis=0, return_inverse=True)
     grad = apply_along_axis_parallel(grad_log_posterior, 1, unique_samples, chunk_size, client)
     return grad[inverse_index]
 
 
-# %%
-# %%time
-rw_grad = calculate_gradient(np.exp(rw_samples[0]))
+# %% [markdown]
+# Calculate the gradients for the random-walk samples:
 
 # %%
-assert np.all(rw_grad == grad_parallel[inverse_index])
+# %%time
+if recalculate:
+    rw_grads = [calculate_gradient(np.exp(rw_sample)) for rw_sample in rw_samples]
+    if save_rw_gradients:
+        for i, rw_grad in enumerate(rw_grads):
+            filepath = Path('../data') / 'generated' / f'rw_gradient_{i}_seed_{rw_seed}.csv'
+            np.savetxt(filepath, rw_grad, delimiter=',')
+else:
+    rw_grads = []
+    for i in range(len(theta_inits)):
+        filepath = Path('../data') / 'generated' / f'rw_gradient_{i}_seed_{rw_seed}.csv'
+        rw_grads.append(np.genfromtxt(filepath, delimiter=','))
+
+# %% [markdown]
+# Calculate the gradients for HMC samples:
+
+# %%
+# %%time
+if recalculate:
+    hmc_grads = [calculate_gradient(np.exp(hmc_sample)) for hmc_sample in hmc_samples]
+    if save_hmc_gradients:
+        for i, hmc_grad in enumerate(hmc_grads):
+            filepath = Path('../data') / 'generated' / f'hmc_gradient_{i}_seed_{hmc_seed}.csv'
+            np.savetxt(filepath, hmc_grad, delimiter=',')
+else:
+    hmc_grads = []
+    for i in range(len(theta_inits)):
+        filepath = Path('../data') / 'generated' / f'hmc_gradient_{i}_seed_{hmc_seed}.csv'
+        hmc_grads.append(np.genfromtxt(filepath, delimiter=','))
 
 # %% [markdown]
 # # Apply Stein Thinning
@@ -659,31 +686,42 @@ n_points_thinned = 20
 
 # %%
 # %%time
-rw_thinned_idx = thin(np.exp(rw_samples[0]), rw_grad, n_points_thinned, pre='med')
+rw_thinned_idx = [
+    thin(np.exp(rw_samples[i]), rw_grads[i], n_points_thinned, preconditioner='med') for i in range(len(rw_samples))
+]
 
 
 # %% [markdown]
 # This reproduces the results shown in Figure S20 in the Supplementary Material:
 
 # %%
-def plot_sample_thinned(sample, thinned_idx):
-    fig, ax = plt.subplots()
-    ax.scatter(sample[:, 0], sample[:, 1], color='lightgray', s=1);
-    ax.scatter(sample[thinned_idx, 0], sample[thinned_idx, 1], color='red', s=4);
-    ax.set_xlabel('$x_1$');
-    ax.set_ylabel('$x_2$');
+def plot_thinned_coords(sample, thinned_idx, coord1, coord2, ax):
+    ax.scatter(sample[:, coord1], sample[:, coord2], color='lightgray', s=1);
+    ax.scatter(sample[thinned_idx, coord1], sample[thinned_idx, coord2], color='red', s=4);
+    ax.set_xlabel(f'$x_{coord1 + 1}$');
+    ax.set_ylabel(f'$x_{coord2 + 1}$');
 
 
 # %%
-plot_sample_thinned(rw_samples[0], rw_thinned_idx)
+def plot_sample_thinned(sample, thinned_idx, axs):
+    plot_thinned_coords(sample, thinned_idx, 0, 1, axs[0])
+    plot_thinned_coords(sample, thinned_idx, 2, 3, axs[1])
+
+
+# %%
+fig, axs = plt.subplots(len(rw_samples), 2, figsize=(12, 5 * len(rw_samples)))
+for i in range(len(rw_samples)):
+    plot_sample_thinned(rw_samples[i], rw_thinned_idx[i], axs[i]);
 
 # %% [markdown]
 # ### HMC sample
 
 # %%
-# %%time
-hmc_grad = calculate_gradient(np.exp(hmc_samples[0]))
-hmc_thinned_idx = thin(np.exp(hmc_samples[0]), hmc_grad, n_points_thinned, pre='med')
+hmc_thinned_idx = [
+    thin(np.exp(hmc_samples[i]), hmc_grads[i], n_points_thinned, preconditioner='med') for i in range(len(hmc_samples))
+]
 
 # %%
-plot_sample_thinned(hmc_samples[0], hmc_thinned_idx)
+fig, axs = plt.subplots(len(hmc_samples), 2, figsize=(12, 5 * len(hmc_samples)))
+for i in range(len(hmc_samples)):
+    plot_sample_thinned(hmc_samples[i], hmc_thinned_idx[i], axs[i]);
