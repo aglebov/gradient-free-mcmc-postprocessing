@@ -38,7 +38,7 @@ from dask.distributed import Client, progress
 from stein_thinning.thinning import thin
 
 from utils.parallel import map_parallel, apply_along_axis_parallel
-from utils.plotting import plot_paths, plot_trace, plot_traces
+from utils.plotting import plot_paths, plot_trace, plot_traces, plot_sample_thinned
 from utils.sampling import to_arviz
 
 # %%
@@ -125,6 +125,7 @@ y = u + eps
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
+fig.suptitle('Lotka-Volterra solution with added Gaussian noise');
 for i in range(2):
     axs[i].plot(t, y[:, i], color='lightgray');
     axs[i].plot(t, u[:, i], color='black');
@@ -251,12 +252,16 @@ else:
 # Reproduce the first column in Figure S17 from the Supplementary Material:
 
 # %%
-plot_traces(rw_samples);
+titles = [f'$\\theta^{{(0)}} = ({theta[0]}, {theta[1]}, {theta[2]}, {theta[3]})$' for theta in theta_inits]
+var_labels = [f'$\\theta_{i + 1}$' for i in range(len(theta_inits))]
+fig = plot_traces(rw_samples, titles=titles, var_labels=var_labels);
+fig.suptitle('Traces from the random-walk Metropolis-Hasting algorithm');
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-plot_paths(rw_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0]);
-plot_paths(rw_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1]);
+plot_paths(rw_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\theta_1$', label2='$\\theta_2$');
+plot_paths(rw_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\theta_3$', label2='$\\theta_4$');
+fig.suptitle('Traversal paths from the random-walk Metropolis-Hastings algorithm');
 
 
 # %%
@@ -358,12 +363,16 @@ else:
         hmc_samples.append(np.genfromtxt(filepath, delimiter=','))
 
 # %%
-plot_traces(hmc_samples);
+titles = [f'$\\theta^{{(0)}} = ({theta[0]}, {theta[1]}, {theta[2]}, {theta[3]})$' for theta in theta_inits]
+var_labels = [f'$\\theta_{i + 1}$' for i in range(len(theta_inits))]
+fig = plot_traces(hmc_samples, titles=titles, var_labels=var_labels);
+fig.suptitle('Traces from the HMC algorithm');
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-plot_paths(hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0]);
-plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1]);
+fig.suptitle('Traversal paths from the HMC algorithm');
+plot_paths(hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\theta_1$', label2='$\\theta_2$');
+plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\theta_3$', label2='$\\theta_4$');
 
 # %%
 [acceptance_rate(sample) for sample in hmc_samples]
@@ -446,6 +455,7 @@ sensitivity_forward = sol.sol(t).T
 
 # %%
 fig, axs = plt.subplots(1, q, figsize=(10, 4), constrained_layout=True)
+fig.suptitle('Lotka-Volterra solution from sensitivity model');
 for i in range(q):
     axs[i].plot(t, sensitivity_forward[:, i]);
     axs[i].set_xlabel('t');
@@ -456,6 +466,7 @@ for i in range(q):
 
 # %%
 fig, axs = plt.subplots(q, d, figsize=(14, 6), constrained_layout=True)
+fig.suptitle('Sensitivities in Lotka-Volterra model');
 for i in range(q):
     for j in range(d):
         axs[i][j].plot(t, sensitivity_forward[:, q + i * d + j]);
@@ -490,6 +501,7 @@ sol2 = solve_lotka_volterra2(theta)
 
 # %%
 fig, axs = plt.subplots(1, q, figsize=(10, 4), constrained_layout=True)
+fig.suptitle('Lotka-Volterra solution from sensitivity model implemented with JAX');
 for i in range(q):
     axs[i].plot(t, sol2[:, i]);
     axs[i].set_xlabel('t');
@@ -507,6 +519,7 @@ sensitivity_jax = jacobian(solve_lotka_volterra2)(theta)
 
 # %%
 fig, axs = plt.subplots(q, d, figsize=(14, 6), constrained_layout=True)
+fig.suptitle('Comparison of sensitivities from forward equations and numerical differentiation');
 for i in range(2):
     for j in range(d):
         axs[i][j].plot(t, sensitivity_forward[:, 2 + i * d + j], label='Forward equations');
@@ -676,7 +689,7 @@ else:
         hmc_grads.append(np.genfromtxt(filepath, delimiter=','))
 
 # %% [markdown]
-# # Apply Stein Thinning
+# # Apply Stein thinning
 
 # %% [markdown]
 # ### Random-walk sample
@@ -690,28 +703,12 @@ rw_thinned_idx = [
     thin(np.exp(rw_samples[i]), rw_grads[i], n_points_thinned, preconditioner='med') for i in range(len(rw_samples))
 ]
 
-
 # %% [markdown]
 # This reproduces the results shown in Figure S20 in the Supplementary Material:
 
 # %%
-def plot_thinned_coords(sample, thinned_idx, coord1, coord2, ax):
-    ax.scatter(sample[:, coord1], sample[:, coord2], color='lightgray', s=1);
-    ax.scatter(sample[thinned_idx, coord1], sample[thinned_idx, coord2], color='red', s=4);
-    ax.set_xlabel(f'$x_{coord1 + 1}$');
-    ax.set_ylabel(f'$x_{coord2 + 1}$');
-
-
-# %%
-def plot_sample_thinned(sample, thinned_idx, axs):
-    plot_thinned_coords(sample, thinned_idx, 0, 1, axs[0])
-    plot_thinned_coords(sample, thinned_idx, 2, 3, axs[1])
-
-
-# %%
-fig, axs = plt.subplots(len(rw_samples), 2, figsize=(12, 5 * len(rw_samples)))
-for i in range(len(rw_samples)):
-    plot_sample_thinned(rw_samples[i], rw_thinned_idx[i], axs[i]);
+fig = plot_sample_thinned(rw_samples, rw_thinned_idx, titles, var_labels);
+fig.suptitle('Results of applying Stein thinning to samples from the random-walk Metropolis-Hastings algorithm');
 
 # %% [markdown]
 # ### HMC sample
@@ -722,6 +719,5 @@ hmc_thinned_idx = [
 ]
 
 # %%
-fig, axs = plt.subplots(len(hmc_samples), 2, figsize=(12, 5 * len(hmc_samples)))
-for i in range(len(hmc_samples)):
-    plot_sample_thinned(hmc_samples[i], hmc_thinned_idx[i], axs[i]);
+fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
+fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
