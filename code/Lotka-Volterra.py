@@ -23,20 +23,22 @@ import matplotlib.pyplot as plt
 
 from scipy.integrate import solve_ivp
 import scipy.stats as stats
+from scipy.stats import multivariate_normal as mvn
 
 import arviz as az
 
 import stan
 
-import jax.numpy as jnp
-from jax.experimental.ode import odeint
 from jax import jacobian
+from jax.experimental.ode import odeint
+import jax.numpy as jnp
 
 import dask.array as da
 from dask.distributed import Client, progress
 
-from stein_thinning.thinning import thin
+from stein_thinning.thinning import thin, thin_gf
 
+from utils.caching import cached_calculate
 from utils.parallel import map_parallel, apply_along_axis_parallel
 from utils.plotting import plot_paths, plot_trace, plot_traces, plot_sample_thinned
 from utils.sampling import to_arviz
@@ -51,6 +53,8 @@ save_rw_results = False
 save_hmc_results = False
 save_rw_gradients = False
 save_hmc_gradients = False
+save_rw_log_p = False
+save_hmc_log_p = False
 
 # %% [markdown]
 # We create a Dask client in order to parallelise calculations where possible:
@@ -646,12 +650,12 @@ grad_log_posterior(theta)
 # A helper function to calculate gradients using unique values only:
 
 # %%
-def calculate_gradient(sample, chunk_size=200):
+def parallelise_for_unique(func, sample, row_chunk_size=200):
     """Calculate gradients for samples"""
     # we can save time by calculating gradients for unique samples only
     unique_samples, inverse_index = np.unique(sample, axis=0, return_inverse=True)
-    grad = apply_along_axis_parallel(grad_log_posterior, 1, unique_samples, chunk_size, client)
-    return grad[inverse_index]
+    res = apply_along_axis_parallel(func, 1, unique_samples, row_chunk_size, client)
+    return res[inverse_index]
 
 
 # %% [markdown]
@@ -660,7 +664,7 @@ def calculate_gradient(sample, chunk_size=200):
 # %%
 # %%time
 if recalculate:
-    rw_grads = [calculate_gradient(np.exp(rw_sample)) for rw_sample in rw_samples]
+    rw_grads = [parallelise_for_unique(grad_log_posterior, np.exp(rw_sample)) for rw_sample in rw_samples]
     if save_rw_gradients:
         for i, rw_grad in enumerate(rw_grads):
             filepath = Path('../data') / 'generated' / f'rw_gradient_{i}_seed_{rw_seed}.csv'
@@ -677,7 +681,7 @@ else:
 # %%
 # %%time
 if recalculate:
-    hmc_grads = [calculate_gradient(np.exp(hmc_sample)) for hmc_sample in hmc_samples]
+    hmc_grads = [parallelise_for_unique(grad_log_posterior, np.exp(hmc_sample)) for hmc_sample in hmc_samples]
     if save_hmc_gradients:
         for i, hmc_grad in enumerate(hmc_grads):
             filepath = Path('../data') / 'generated' / f'hmc_gradient_{i}_seed_{hmc_seed}.csv'
@@ -721,3 +725,55 @@ hmc_thinned_idx = [
 # %%
 fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
+
+# %% [markdown]
+# ## Importance resampling
+
+# %% [markdown]
+# We recalculate the (unnormalised) log target density for all samples. Note that in principle we could have stored it during the MCMC run rather than recalculating it.
+
+# %%
+# %%time
+rw_log_p = cached_calculate(
+    rw_samples,
+    lambda sample: parallelise_for_unique(log_target_density, sample),
+    lambda i: Path('../data') / 'generated' / f'rw_log_p_{i}_seed_{rw_seed}.csv',
+    recalculate=False,
+    save=False,
+)
+
+
+# %%
+def ir_thin(log_p, size, rng):
+    p_adj = np.exp(log_p - np.max(log_p))
+    w = p_adj / np.sum(p_adj)
+    return rng.choice(len(log_p), size, p=w)
+
+
+# %%
+rw_ir_idx = [
+    ir_thin(log_p, n_points_thinned, rng) for log_p in rw_log_p
+]
+
+# %%
+fig = plot_sample_thinned(rw_samples, rw_ir_idx, titles, var_labels);
+fig.suptitle('Results of applying importance resampling to samples from the random-walk Metropolis-Hastings algorithm');
+
+# %%
+# %%time
+hmc_log_p = cached_calculate(
+    hmc_samples,
+    lambda sample: parallelise_for_unique(log_target_density, sample),
+    lambda i: Path('../data') / 'generated' / f'hmc_log_p_{i}_seed_{hmc_seed}.csv',
+    recalculate=False,
+    save=False,
+)
+
+# %%
+hmc_ir_idx = [
+    ir_thin(log_p, n_points_thinned, rng) for log_p in hmc_log_p
+]
+
+# %%
+fig = plot_sample_thinned(hmc_samples, hmc_ir_idx, titles, var_labels);
+fig.suptitle('Results of applying importance resampling to samples from the HMC algorithm');
