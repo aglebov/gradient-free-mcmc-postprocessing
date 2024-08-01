@@ -770,6 +770,27 @@ hmc_thinned_idx = [
 fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
 
+
+# %% [markdown]
+# ## Naive thinning
+
+# %% [markdown]
+# The baseline for comparison is the naive thinning approach where we retain each i-th element of the sample.
+
+# %%
+def naive_thin(sample_size, thinned_size):
+    return np.linspace(0, sample_size - 1, thinned_size).astype(int)
+
+
+# %%
+rw_naive_idx = [
+    naive_thin(rw_sample.shape[0], n_points_thinned) for rw_sample in rw_samples
+]
+
+# %%
+fig = plot_sample_thinned(rw_samples, rw_naive_idx, titles, var_labels);
+fig.suptitle('Results of applying naive thinning to samples from the random-walk Metropolis-Hastings algorithm');
+
 # %% [markdown]
 # ## Importance resampling
 
@@ -831,7 +852,7 @@ fig.suptitle('Results of applying importance resampling to samples from the HMC 
 
 # %%
 def fit_quality(subsample):
-    return dcor.energy_distance(validation_sample[::10], subsample)
+    return np.sqrt(dcor.energy_distance(validation_sample[::10], subsample))
 
 
 # %%
@@ -845,9 +866,13 @@ def create_fit_table(samples, index_lists, row_names, column_names):
 
 # %%
 # %%time
-rw_fit = create_fit_table(rw_samples, [rw_thinned_idx, rw_ir_idx], ['Stein thinning', 'Importance resampling'], range(1, len(rw_samples) + 1))
+rw_fit = create_fit_table(
+    rw_samples,
+    [rw_thinned_idx, rw_naive_idx, rw_ir_idx],
+    ['Stein thinning', 'Naive thinning', 'Importance resampling'],
+    range(1, len(rw_samples) + 1))
 rw_fit
 
 # %%
-ax = sns.heatmap(rw_fit, annot=True, fmt='.3f', cmap=sns.cm.rocket_r);
+ax = sns.heatmap(rw_fit, annot=True, fmt='.3f', cmap=sns.cm.rocket_r, vmax=np.quantile(rw_fit, 0.9));
 ax.set_title('Energy distance between thinned samples and the validation sample');
