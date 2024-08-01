@@ -37,6 +37,12 @@ def map_parallel(
     return client.gather(futures)
 
 
+def get_map_parallel(client):
+    def map_parallel_client(func, iterable):
+        return map_parallel(func, iterable, client)
+    return map_parallel_client
+
+
 def apply_along_axis_parallel(
         func1d: Callable[[np.ndarray], np.ndarray],
         axis: int,

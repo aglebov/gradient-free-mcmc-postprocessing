@@ -38,14 +38,21 @@ from dask.distributed import Client, progress
 
 from stein_thinning.thinning import thin, thin_gf
 
-from utils.caching import cached_calculate
-from utils.parallel import map_parallel, apply_along_axis_parallel
+from utils.caching import map_cached, calculate_iterable_cached
+import utils.parallel
+from utils.parallel import apply_along_axis_parallel, get_map_parallel
 from utils.plotting import plot_paths, plot_trace, plot_traces, plot_sample_thinned
 from utils.sampling import to_arviz
 
 # %%
 import nest_asyncio
 nest_asyncio.apply()
+
+# %% [markdown]
+# Directory where results of expensive calculations will be stored:
+
+# %%
+generated_data_dir = Path('../data') / 'generated'
 
 # %%
 recalculate = False  # True => perform expensive calculations, False => use stored results
@@ -63,6 +70,9 @@ save_hmc_log_p = recalculate
 # %%
 client = Client(processes=True, threads_per_worker=4, n_workers=4, memory_limit='2GB')
 client
+
+# %%
+map_parallel = get_map_parallel(client)
 
 
 # %% [markdown]
@@ -240,17 +250,14 @@ def run_rw_sampler(theta_init):
 
 # %%
 # %%time
-if recalculate:
-    rw_samples = map_parallel(run_rw_sampler, theta_inits, client)
-    if save_rw_results:
-        for i, sample in enumerate(rw_samples):
-            filepath = Path('../data') / 'generated' / f'rw_chain_{i}_seed_{rw_seed}.csv'
-            np.savetxt(filepath, sample, delimiter=',')
-else:
-    rw_samples = []
-    for i in range(len(theta_inits)):
-        filepath = Path('../data') / 'generated' / f'rw_chain_{i}_seed_{rw_seed}.csv'
-        rw_samples.append(np.genfromtxt(filepath, delimiter=','))
+rw_samples = map_cached(
+    lambda item: run_rw_sampler(item[1]),
+    enumerate(theta_inits),
+    lambda item: generated_data_dir / f'rw_chain_{item[0]}_seed_{rw_seed}.csv',
+    recalculate=recalculate,
+    save=save_rw_results,
+    mapper=map_parallel
+)
 
 # %% [markdown]
 # Reproduce the first column in Figure S17 from the Supplementary Material:
@@ -345,9 +352,11 @@ def extract_chains(stan_sample, param):
 
 
 # %%
-# %%time
 hmc_seed = 12345
-if recalculate:
+
+
+# %%
+def calculate_hmc():
     inference_model = stan.build(stan_model_spec, data=data, random_seed=hmc_seed)
     stan_sample = inference_model.sample(
         num_chains=len(theta_inits),
@@ -355,16 +364,18 @@ if recalculate:
         save_warmup=True,
         init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
     )
-    hmc_samples = extract_chains(stan_sample, 'theta')
-    if save_hmc_results:
-        for i, sample in enumerate(hmc_samples):
-            filepath = Path('../data') / 'generated' / f'hmc_chain_{i}_seed_{hmc_seed}.csv'
-            np.savetxt(filepath, sample, delimiter=',')
-else:
-    hmc_samples = []
-    for i in range(len(theta_inits)):
-        filepath = Path('../data') / 'generated' / f'hmc_chain_{i}_seed_{hmc_seed}.csv'
-        hmc_samples.append(np.genfromtxt(filepath, delimiter=','))
+    return extract_chains(stan_sample, 'theta')
+
+
+# %%
+# %%time
+hmc_samples = calculate_iterable_cached(
+    calculate_hmc,
+    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{hmc_seed}.csv',
+    len(theta_inits),
+    recalculate=recalculate,
+    save=save_hmc_results,
+)
 
 # %%
 titles = [f'$\\theta^{{(0)}} = ({theta[0]}, {theta[1]}, {theta[2]}, {theta[3]})$' for theta in theta_inits]
@@ -663,34 +674,26 @@ def parallelise_for_unique(func, sample, row_chunk_size=200):
 
 # %%
 # %%time
-if recalculate:
-    rw_grads = [parallelise_for_unique(grad_log_posterior, np.exp(rw_sample)) for rw_sample in rw_samples]
-    if save_rw_gradients:
-        for i, rw_grad in enumerate(rw_grads):
-            filepath = Path('../data') / 'generated' / f'rw_gradient_{i}_seed_{rw_seed}.csv'
-            np.savetxt(filepath, rw_grad, delimiter=',')
-else:
-    rw_grads = []
-    for i in range(len(theta_inits)):
-        filepath = Path('../data') / 'generated' / f'rw_gradient_{i}_seed_{rw_seed}.csv'
-        rw_grads.append(np.genfromtxt(filepath, delimiter=','))
+rw_grads = map_cached(
+    lambda item: parallelise_for_unique(grad_log_posterior, np.exp(item[1])),
+    enumerate(rw_samples),
+    lambda item: generated_data_dir / f'rw_gradient_{item[0]}_seed_{rw_seed}.csv',
+    recalculate=recalculate,
+    save=save_rw_gradients,
+)
 
 # %% [markdown]
 # Calculate the gradients for HMC samples:
 
 # %%
 # %%time
-if recalculate:
-    hmc_grads = [parallelise_for_unique(grad_log_posterior, np.exp(hmc_sample)) for hmc_sample in hmc_samples]
-    if save_hmc_gradients:
-        for i, hmc_grad in enumerate(hmc_grads):
-            filepath = Path('../data') / 'generated' / f'hmc_gradient_{i}_seed_{hmc_seed}.csv'
-            np.savetxt(filepath, hmc_grad, delimiter=',')
-else:
-    hmc_grads = []
-    for i in range(len(theta_inits)):
-        filepath = Path('../data') / 'generated' / f'hmc_gradient_{i}_seed_{hmc_seed}.csv'
-        hmc_grads.append(np.genfromtxt(filepath, delimiter=','))
+hmc_grads = map_cached(
+    lambda item: parallelise_for_unique(grad_log_posterior, np.exp(item[1])),
+    enumerate(hmc_samples),
+    lambda item: generated_data_dir / f'hmc_gradient_{item[0]}_seed_{hmc_seed}.csv',
+    recalculate=recalculate,
+    save=save_hmc_gradients,
+)
 
 # %% [markdown]
 # # Apply Stein thinning
@@ -734,10 +737,10 @@ fig.suptitle('Results of applying Stein thinning to samples from the HMC algorit
 
 # %%
 # %%time
-rw_log_p = cached_calculate(
-    rw_samples,
-    lambda sample: parallelise_for_unique(log_target_density, sample),
-    lambda i: Path('../data') / 'generated' / f'rw_log_p_{i}_seed_{rw_seed}.csv',
+rw_log_p = map_cached(
+    lambda item: parallelise_for_unique(log_target_density, item[1]),
+    enumerate(rw_samples),
+    lambda item: generated_data_dir / f'rw_log_p_{item[0]}_seed_{rw_seed}.csv',
     recalculate=recalculate,
     save=save_rw_log_p,
 )
@@ -761,10 +764,10 @@ fig.suptitle('Results of applying importance resampling to samples from the rand
 
 # %%
 # %%time
-hmc_log_p = cached_calculate(
-    hmc_samples,
-    lambda sample: parallelise_for_unique(log_target_density, sample),
-    lambda i: Path('../data') / 'generated' / f'hmc_log_p_{i}_seed_{hmc_seed}.csv',
+hmc_log_p = map_cached(
+    lambda item: parallelise_for_unique(log_target_density, item[1]),
+    enumerate(hmc_samples),
+    lambda item: generated_data_dir / f'hmc_log_p_{item[0]}_seed_{hmc_seed}.csv',
     recalculate=recalculate,
     save=save_hmc_log_p,
 )
