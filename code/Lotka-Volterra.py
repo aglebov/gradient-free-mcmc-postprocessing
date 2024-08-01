@@ -49,12 +49,13 @@ nest_asyncio.apply()
 
 # %%
 recalculate = False  # True => perform expensive calculations, False => use stored results
-save_rw_results = False
-save_hmc_results = False
-save_rw_gradients = False
-save_hmc_gradients = False
-save_rw_log_p = False
-save_hmc_log_p = False
+save_data = recalculate
+save_rw_results = recalculate
+save_hmc_results = recalculate
+save_rw_gradients = recalculate
+save_hmc_gradients = recalculate
+save_rw_log_p = recalculate
+save_hmc_log_p = recalculate
 
 # %% [markdown]
 # We create a Dask client in order to parallelise calculations where possible:
@@ -92,7 +93,7 @@ def lotka_volterra(t, u, theta):
 # Solve the coupled ODEs:
 
 # %%
-t_n = 2500  # number of time data points
+t_n = 2400  # number of time data points
 t_span = [0, 25]  # the time span over which to integrate the system
 theta = [0.67, 1.33, 1., 1.]  # parameters of the model
 q = 2  # number of state variables
@@ -137,7 +138,6 @@ for i in range(2):
     axs[i].set_ylabel(f'$u_{i + 1}(t)$');
 
 # %%
-save_data = False
 if save_data:
     filepath = Path('../data') / 'generated' / 'lotka_volterra_gaussian_noise.csv'
     df = pd.DataFrame({'u1': y[:, 0], 'u2': y[:, 1]}, index=pd.Index(t, name='t'))
@@ -738,8 +738,8 @@ rw_log_p = cached_calculate(
     rw_samples,
     lambda sample: parallelise_for_unique(log_target_density, sample),
     lambda i: Path('../data') / 'generated' / f'rw_log_p_{i}_seed_{rw_seed}.csv',
-    recalculate=False,
-    save=False,
+    recalculate=recalculate,
+    save=save_rw_log_p,
 )
 
 
@@ -765,8 +765,8 @@ hmc_log_p = cached_calculate(
     hmc_samples,
     lambda sample: parallelise_for_unique(log_target_density, sample),
     lambda i: Path('../data') / 'generated' / f'hmc_log_p_{i}_seed_{hmc_seed}.csv',
-    recalculate=False,
-    save=False,
+    recalculate=recalculate,
+    save=save_hmc_log_p,
 )
 
 # %%
