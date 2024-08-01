@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
 from scipy.stats import multivariate_normal as mvn
+import seaborn as sns
 import dcor
 
 from jax import grad
@@ -396,6 +397,22 @@ highlight_points(sample, np.argsort(log_q)[:20])
 # The gradient-free integrand includes the multiplier $q(x)/p(x)$. In the plain KDE, $q(x)$ will be proportional to the density of sample points in te vicinity of $x$. Applying weights has the effect of reducing $q(x)$ further, thus penalising the points in the low-probability area twice.
 
 # %% [markdown]
+# We can confirm that the values of $\log q(x) - \log p(x)$ are commensurate across the sample for the standard KDE but not for the weighted KDE:
+
+# %%
+vals = np.concatenate([log_q_wkde - log_p, log_q_kde - log_p])
+vmin = np.min(vals)
+vmax = np.max(vals)
+
+fig, axs = plt.subplots(1, 2, figsize=(12, 5));
+
+scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=log_q_wkde - log_p, vmin=vmin, vmax=vmax);
+axs[0].set_title('$\\log q(x) - \\log p(x)$ for weighted KDE');
+
+axs[1].scatter(sample[:, 0], sample[:, 1], c=log_q_kde - log_p, vmin=vmin, vmax=vmax);
+axs[1].set_title('$\\log q(x) - \\log p(x)$ for standard KDE');
+
+# %% [markdown]
 # Here we compare the values on the diagonal of the integrand matrix, which the algorithm would use in its first step:
 
 # %%
@@ -425,3 +442,22 @@ fig, axs = plt.subplots(1, 3, figsize=(15, 4))
 plot_density(lambda x: np.linalg.norm(score(x), axis=1), axs[0], xlim, ylim, 'Norm of true gradient');
 plot_density(lambda x: np.linalg.norm(jnp.apply_along_axis(kde_grad, 1, x), axis=1), axs[1], xlim, ylim, 'Norm of KDE gradient');
 plot_density(lambda x: np.linalg.norm(jnp.apply_along_axis(wkde_grad, 1, x), axis=1), axs[2], xlim, ylim, 'Norm of weighted KDE gradient');
+
+# %% [markdown]
+# ### Performance of the Laplace approximation
+
+# %% [markdown]
+# We have seen above that the Laplace approximation fails to produce a good proxy for this sample. Here we confirm that the problem again is that the ratio $q(x) / p(x)$ becomes very small for some points.
+
+# %%
+vals = np.concatenate([log_q - log_p, log_q_laplace - log_p])
+vmin = np.min(vals)
+vmax = np.max(vals)
+
+fig, axs = plt.subplots(1, 2, figsize=(12, 5));
+
+scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=log_q_laplace - log_p, vmin=vmin, vmax=vmax);
+axs[0].set_title('$\\log q(x) - \\log p(x)$ for the Laplace approximation');
+
+axs[1].scatter(sample[:, 0], sample[:, 1], c=log_q - log_p, vmin=vmin, vmax=vmax);
+axs[1].set_title('$\\log q(x) - \\log p(x)$ for the simple Gaussian approximation');
