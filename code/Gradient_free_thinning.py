@@ -175,10 +175,19 @@ np.testing.assert_array_almost_equal(gradient, gradient_jax)
 thinned_size = 40
 
 # %% [markdown]
+# ### Naive thinning
+
+# %% [markdown]
+# The easiest way to obtain a subsample from the posterior sample is by retaining each i-th element. In this case, each point is selected independently with the same probability.
+
+# %%
+idx_naive = np.linspace(0, sample.shape[0] - 1, thinned_size).astype(int)
+
+# %% [markdown]
 # ### Importance resampling
 
 # %% [markdown]
-# The easiest way to obtain a subsample from the posterior sample is importance resampling. In this case, each point is selected independently.
+# Importance resampling improves on the naive approach by taking into account the posterior probability of samples. Each point is still selected independently.
 #
 # For resampling, we need need the posterior probability for each sample point:
 
@@ -310,6 +319,7 @@ idx_gf_laplace = thin_gf(sample, log_p, log_q_laplace, gradient_q_laplace, thinn
 
 # %%
 entries = [
+    (idx_naive, 'Naive thinning'),
     (idx_ir, 'Importance resampling'),
     (idx_st, 'Stein thinning'),
     (idx_gf, 'Gradient-free Stein thinning: Gaussian proxy'),
