@@ -20,6 +20,7 @@ import numpy as np
 from numpy.linalg import inv
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from scipy.integrate import solve_ivp
 import scipy.stats as stats
@@ -35,6 +36,8 @@ import jax.numpy as jnp
 
 import dask.array as da
 from dask.distributed import Client, progress
+
+import dcor
 
 from stein_thinning.thinning import thin, thin_gf
 
@@ -59,6 +62,7 @@ recalculate = False  # True => perform expensive calculations, False => use stor
 save_data = recalculate
 save_rw_results = recalculate
 save_hmc_results = recalculate
+save_validation_hmc_results = recalculate
 save_rw_gradients = recalculate
 save_hmc_gradients = recalculate
 save_rw_log_p = recalculate
@@ -397,6 +401,43 @@ plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='
 
 # %%
 az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
+
+# %% [markdown]
+# ### Validation HMC sample
+
+# %%
+# %%time
+validation_hmc_seed = 98765
+
+def calculate_hmc_validation():
+    inference_model = stan.build(stan_model_spec, data=data, random_seed=validation_hmc_seed)
+    stan_sample = inference_model.sample(
+        num_chains=len(theta_inits),
+        num_samples=n_samples_hmc,
+        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
+    )
+    return extract_chains(stan_sample, 'theta')
+
+validation_hmc_samples = calculate_iterable_cached(
+    calculate_hmc_validation,
+    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{validation_hmc_seed}.csv',
+    len(theta_inits),
+    recalculate=recalculate,
+    save=save_validation_hmc_results,
+)
+
+# %%
+fig = plot_traces(validation_hmc_samples, titles=titles, var_labels=var_labels);
+fig.suptitle('Traces from the validation sample');
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+fig.suptitle('Traversal paths for the validation sample');
+plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\theta_1$', label2='$\\theta_2$');
+plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\theta_3$', label2='$\\theta_4$');
+
+# %%
+validation_sample = np.concatenate(validation_hmc_samples, axis=0)
 
 
 # %% [markdown]
@@ -780,3 +821,33 @@ hmc_ir_idx = [
 # %%
 fig = plot_sample_thinned(hmc_samples, hmc_ir_idx, titles, var_labels);
 fig.suptitle('Results of applying importance resampling to samples from the HMC algorithm');
+
+
+# %% [markdown]
+# ### Energy distance comparison
+
+# %% [markdown]
+# We calculate the energy distance between thinned samples and the validation sample:
+
+# %%
+def fit_quality(subsample):
+    return dcor.energy_distance(validation_sample[::10], subsample)
+
+
+# %%
+def create_fit_table(samples, index_lists, row_names, column_names):
+    return pd.DataFrame(
+        [[fit_quality(samples[i][indices[i]]) for i in range(len(samples))] for indices in index_lists],
+        index=row_names,
+        columns=column_names,
+    )
+
+
+# %%
+# %%time
+rw_fit = create_fit_table(rw_samples, [rw_thinned_idx, rw_ir_idx], ['Stein thinning', 'Importance resampling'], range(1, len(rw_samples) + 1))
+rw_fit
+
+# %%
+ax = sns.heatmap(rw_fit, annot=True, fmt='.3f', cmap=sns.cm.rocket_r);
+ax.set_title('Energy distance between thinned samples and the validation sample');
