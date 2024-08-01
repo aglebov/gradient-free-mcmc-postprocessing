@@ -17,6 +17,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
 from scipy.stats import multivariate_normal as mvn
 import dcor
@@ -67,7 +68,7 @@ def make_mvn_mixture(weights, means, covs):
         ).squeeze()
 
     def logpdf(x):
-        f = np.stack([mvn.pdf(x, mean=means[i], cov=covs[i]) for i in range(len(weights))])
+        f = np.stack([mvn.pdf(x, mean=means[i], cov=covs[i]) for i in range(len(weights))]).reshape(len(weights), -1)
         return np.log(np.einsum('i,il->l', weights, f))
     
     def score(x):
@@ -96,7 +97,7 @@ def make_mvn_mixture(weights, means, covs):
 # Choose the parameters of the mixture:
 
 # %%
-w = np.array([0.3, 0.7])
+weights = np.array([0.3, 0.7])
 means = np.array([
     [-1., -1.],
     [1., 1.],
@@ -113,7 +114,7 @@ covs = np.array([
 ])
 
 # %%
-rvs, logpdf, score, logpdf_jax = make_mvn_mixture(w, means, covs)
+rvs, logpdf, score, logpdf_jax = make_mvn_mixture(weights, means, covs)
 
 # %% [markdown]
 # Obtain a sample from the mixture:
@@ -277,6 +278,33 @@ plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density')
 # %%
 idx_gf_wkde = thin_gf(sample, log_p, log_q_wkde, gradient_q_wkde, thinned_size)
 
+
+# %% [markdown]
+# ### Gradient-free Stein thinning with a Laplace approximation
+
+# %%
+def laplace_approximation(sample):
+    res = minimize(lambda x: -logpdf(x), np.mean(sample, axis=0), method='BFGS')
+    assert res.success
+    return res.x, res.hess_inv
+
+
+# %%
+laplace_mean, laplace_cov = laplace_approximation(sample)
+
+# %%
+fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+plot_density(lambda x: mvn.pdf(x, mean=laplace_mean, cov=laplace_cov), axs[0], xlim, ylim, 'Laplace approximation');
+plot_density(lambda x: mvn.pdf(x, mean=sample_mean, cov=sample_cov), axs[1], xlim, ylim, 'Simple Gaussian approximation');
+plot_density(lambda x: np.exp(logpdf(x)), axs[2], xlim, ylim, 'Mixture density');
+
+# %%
+log_q_laplace = mvn.logpdf(sample, mean=laplace_mean, cov=laplace_cov)
+gradient_q_laplace = -np.einsum('ij,kj->ki', np.linalg.inv(laplace_cov), sample - laplace_mean)
+
+# %%
+idx_gf_laplace = thin_gf(sample, log_p, log_q_laplace, gradient_q_laplace, thinned_size)
+
 # %% [markdown]
 # ### Comparison
 
@@ -287,6 +315,7 @@ entries = [
     (idx_gf, 'Gradient-free Stein thinning: Gaussian proxy'),
     (idx_gf_kde, 'Gradient-free Stein thinning: KDE proxy'),
     (idx_gf_wkde, 'Gradient-free Stein thinning: weighted KDE proxy'),
+    (idx_gf_laplace, 'Gradient-free Stein thinning: Laplace proxy'),
 ]
 
 
