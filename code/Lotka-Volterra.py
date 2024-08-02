@@ -30,9 +30,10 @@ import arviz as az
 
 import stan
 
-from jax import jacobian
+from jax import grad, jacobian
 from jax.experimental.ode import odeint
 import jax.numpy as jnp
+from jax.scipy.stats import gaussian_kde as jgaussian_kde
 
 import dask.array as da
 from dask.distributed import Client, progress
@@ -770,9 +771,55 @@ hmc_thinned_idx = [
 fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
 
+# %% [markdown]
+# # Gradient-free Stein thinning
 
 # %% [markdown]
-# ## Naive thinning
+# We recalculate the (unnormalised) log target density for all samples. Note that in principle we could have stored it during the MCMC run rather than recalculating it.
+
+# %%
+# %%time
+rw_log_p = map_cached(
+    lambda item: parallelise_for_unique(log_target_density, item[1]),
+    enumerate(rw_samples),
+    lambda item: generated_data_dir / f'rw_log_p_{item[0]}_seed_{rw_seed}.csv',
+    recalculate=recalculate,
+    save=save_rw_log_p,
+)
+
+# %%
+# %%time
+hmc_log_p = map_cached(
+    lambda item: parallelise_for_unique(log_target_density, item[1]),
+    enumerate(hmc_samples),
+    lambda item: generated_data_dir / f'hmc_log_p_{item[0]}_seed_{hmc_seed}.csv',
+    recalculate=recalculate,
+    save=save_hmc_log_p,
+)
+
+
+# %%
+def thin_gf_kde(sample, log_p, thinned_size):
+    kde = jgaussian_kde(sample[::1000].T, bw_method='silverman')
+    log_q = np.array(kde.logpdf(sample.T))
+    kde_grad = grad(lambda x: kde.logpdf(x)[0])
+    gradient_q = np.array(jnp.apply_along_axis(kde_grad, 1, sample))
+    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
+
+
+# %%
+# %%time
+rw_gf_kde_idx = [
+    thin_gf_kde(rw_samples[i], rw_log_p[i], n_points_thinned) for i in range(len(rw_samples))
+]
+
+# %%
+fig = plot_sample_thinned(rw_samples, rw_gf_kde_idx, titles, var_labels);
+fig.suptitle('Results of applying gradient-free Stein thinning with a KDE proxy to samples from the random-walk Metropolis-Hastings algorithm');
+
+
+# %% [markdown]
+# # Naive thinning
 
 # %% [markdown]
 # The baseline for comparison is the naive thinning approach where we retain each i-th element of the sample.
@@ -791,22 +838,9 @@ rw_naive_idx = [
 fig = plot_sample_thinned(rw_samples, rw_naive_idx, titles, var_labels);
 fig.suptitle('Results of applying naive thinning to samples from the random-walk Metropolis-Hastings algorithm');
 
-# %% [markdown]
-# ## Importance resampling
 
 # %% [markdown]
-# We recalculate the (unnormalised) log target density for all samples. Note that in principle we could have stored it during the MCMC run rather than recalculating it.
-
-# %%
-# %%time
-rw_log_p = map_cached(
-    lambda item: parallelise_for_unique(log_target_density, item[1]),
-    enumerate(rw_samples),
-    lambda item: generated_data_dir / f'rw_log_p_{item[0]}_seed_{rw_seed}.csv',
-    recalculate=recalculate,
-    save=save_rw_log_p,
-)
-
+# # Importance resampling
 
 # %%
 def ir_thin(log_p, size, rng):
@@ -825,16 +859,6 @@ fig = plot_sample_thinned(rw_samples, rw_ir_idx, titles, var_labels);
 fig.suptitle('Results of applying importance resampling to samples from the random-walk Metropolis-Hastings algorithm');
 
 # %%
-# %%time
-hmc_log_p = map_cached(
-    lambda item: parallelise_for_unique(log_target_density, item[1]),
-    enumerate(hmc_samples),
-    lambda item: generated_data_dir / f'hmc_log_p_{item[0]}_seed_{hmc_seed}.csv',
-    recalculate=recalculate,
-    save=save_hmc_log_p,
-)
-
-# %%
 hmc_ir_idx = [
     ir_thin(log_p, n_points_thinned, rng) for log_p in hmc_log_p
 ]
@@ -845,7 +869,7 @@ fig.suptitle('Results of applying importance resampling to samples from the HMC 
 
 
 # %% [markdown]
-# ### Energy distance comparison
+# # Energy distance comparison
 
 # %% [markdown]
 # We calculate the energy distance between thinned samples and the validation sample:
