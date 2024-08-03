@@ -1,7 +1,36 @@
 from pathlib import Path
+import pickle
 from typing import Any, Callable, Iterable, Optional
 
 import numpy as np
+import pandas as pd
+
+import jax
+import jax.numpy as jnp
+
+
+def save_obj(filepath, obj):
+    if isinstance(obj, np.ndarray):
+        np.savetxt(filepath, arr, delimiter=',')
+    elif isinstance(obj, pd.DataFrame):
+        obj.to_csv(filepath)
+    elif isinstance(obj, jax.Array):
+        jnp.save(filepath, obj, allow_pickle=False)
+    else:
+        with open(filepath, 'wb') as f:
+            pickle.dump(obj, f)
+
+
+def read_obj(filepath, expected_type: type):
+    if expected_type is np.ndarray:
+        return np.genfromtxt(filepath, delimiter=',')
+    elif expected_type is pd.DataFrame:
+        return pd.read_csv(filepath, index_col=0)
+    elif expected_type is jax.Array:
+        return jnp.load(filepath, allow_pickle=False)
+    else:
+        with open(filepath, 'rb') as f:
+            return pickle.load(f)
 
 
 def calculate_cached(
@@ -9,6 +38,7 @@ def calculate_cached(
     filepath: Path,
     recalculate: bool = False,
     save: bool = False,
+    expected_type: type = np.ndarray,
 ) -> np.ndarray:
     """Perform expensive calculation or retrieve cached result
 
@@ -22,6 +52,8 @@ def calculate_cached(
         recalculate the results from scratch if True, use the cached result if False
     save: bool
         save the result of the calculation (only has effect if `recalculate` is True)
+    expected_type: type
+        expected type of the result when retrieving from file
 
     Returns
     -------
@@ -31,9 +63,9 @@ def calculate_cached(
     if recalculate:
         res = calculation()
         if save:
-            np.savetxt(filepath, res, delimiter=',')
+            save_obj(filepath, res)
     else:
-        res = np.genfromtxt(filepath, delimiter=',')
+        res = read_obj(filepath, expected_type)          
     return res
 
 
@@ -43,6 +75,7 @@ def calculate_iterable_cached(
     n_items: Optional[int] = None,
     recalculate: bool = False,
     save: bool = False,
+    expected_type: type = np.ndarray,
 ) -> np.ndarray:
     """Perform expensive calculation or retrieve cached result
 
@@ -60,6 +93,8 @@ def calculate_iterable_cached(
         recalculate the results from scratch if True, use the cached result if False
     save: bool
         save the result of the calculation (only has effect if `recalculate` is True)
+    expected_type: type
+        expected type of the result when retrieving from file
 
     Returns
     -------
@@ -70,9 +105,9 @@ def calculate_iterable_cached(
         items = list(calculation())
         if save:
             for i, item in enumerate(items):
-                np.savetxt(filepath_gen(i), item, delimiter=',')
+                save_obj(filepath_gen(i), item)
     else:
-        items = [np.genfromtxt(filepath_gen(i), delimiter=',') for i in range(n_items)]
+        items = [read_obj(filepath_gen(i), expected_type) for i in range(n_items)]
     return items
 
 
@@ -83,6 +118,7 @@ def map_cached(
     recalculate: bool = False,
     save: bool = False,
     mapper: Callable[[Callable[[Any], np.ndarray], Iterable[Any]], Iterable[np.ndarray]] = map,
+    expected_type: type = np.ndarray,
 ):
     """Perform expensive calculation for provided items or read stored results
 
@@ -100,6 +136,13 @@ def map_cached(
         save the result of the calculation (only has effect if `recalculate` is True)
     mapper: Callable[[Callable[[Any], np.ndarray], Iterable[Any]], Iterable[np.ndarray]]
         mapper function to use (defaults to the standard `map` function)
+    expected_type: type
+        expected type of the result when retrieving from file
+
+    Returns
+    -------
+    list[Any]
+        result of calculation for each item
     """
     def calculate(item):
         return calculate_cached(lambda: func(item), filepath_gen(item), recalculate, save)

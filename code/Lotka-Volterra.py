@@ -14,6 +14,10 @@
 # ---
 
 # %%
+import time
+start_time = time.time()
+
+# %%
 import itertools
 from pathlib import Path
 
@@ -31,6 +35,7 @@ import arviz as az
 
 import stan
 
+import jax
 from jax import grad, jacobian
 from jax.experimental.ode import odeint
 import jax.numpy as jnp
@@ -45,7 +50,7 @@ import dcor
 from stein_thinning.stein import kmat
 from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _greedy_search, _validate_sample_and_gradient
 
-from utils.caching import map_cached, calculate_iterable_cached
+from utils.caching import calculate_cached, calculate_iterable_cached, map_cached
 import utils.parallel
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
 from utils.plotting import highlight_points, plot_density, plot_paths, plot_sample_thinned, plot_trace, plot_traces
@@ -66,7 +71,10 @@ recalculate = False  # True => perform expensive calculations, False => use stor
 save_data = recalculate
 save_rw_results = recalculate
 save_hmc_results = recalculate
+save_rw_az_summary = recalculate
+save_hmc_az_summary = recalculate
 save_validation_hmc_results = recalculate
+save_jacobian_jax = recalculate
 save_rw_gradients = recalculate
 save_hmc_gradients = recalculate
 save_rw_log_p = recalculate
@@ -300,7 +308,13 @@ def acceptance_rate(sample):
 
 # %%
 # %%time
-az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
+calculate_cached(
+    lambda: az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)])),
+    generated_data_dir / 'rw_az_summary.csv',
+    recalculate=recalculate,
+    save=save_rw_az_summary,
+    expected_type=pd.DataFrame,
+)
 
 # %% [markdown]
 # # Sample using Stan
@@ -404,7 +418,14 @@ plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='
 # Based on the thresholds in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_, the diagnostics do not suggest any convergence issues:
 
 # %%
-az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
+# %%time
+calculate_cached(
+    lambda: az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)])),
+    generated_data_dir / 'hmc_az_summary.csv',
+    recalculate=recalculate,
+    save=save_hmc_az_summary,
+    expected_type=pd.DataFrame,
+)
 
 # %% [markdown]
 # ### Validation HMC sample
@@ -572,7 +593,14 @@ for i in range(q):
 
 # %%
 # %%time
-sensitivity_jax = jacobian(solve_lotka_volterra2)(theta)
+sensitivity_jax = calculate_iterable_cached(
+    lambda: jacobian(solve_lotka_volterra2)(theta),
+    lambda i: generated_data_dir / f'jacobian_jax_{i}.npy',
+    d,
+    recalculate=recalculate,
+    save=save_jacobian_jax,
+    expected_type=jax.Array,
+)
 
 # %% [markdown]
 # We confirm that the numerical method agrees with the results from forward sensitivity equations:
@@ -1125,3 +1153,9 @@ rw_fit
 # %%
 ax = sns.heatmap(rw_fit, annot=True, fmt='.3f', cmap=sns.cm.rocket_r, vmax=np.quantile(rw_fit, 0.9));
 ax.set_title('Energy distance between thinned samples and the validation sample');
+
+# %% [markdown]
+# Notebook execution took:
+
+# %%
+time.time() - start_time
