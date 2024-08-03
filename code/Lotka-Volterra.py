@@ -14,6 +14,7 @@
 # ---
 
 # %%
+import itertools
 from pathlib import Path
 
 import numpy as np
@@ -35,17 +36,19 @@ from jax.experimental.ode import odeint
 import jax.numpy as jnp
 from jax.scipy.stats import gaussian_kde as jgaussian_kde
 
+import dask
 import dask.array as da
 from dask.distributed import Client, progress
 
 import dcor
 
-from stein_thinning.thinning import thin, thin_gf
+from stein_thinning.stein import kmat
+from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _greedy_search, _validate_sample_and_gradient
 
 from utils.caching import map_cached, calculate_iterable_cached
 import utils.parallel
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
-from utils.plotting import plot_paths, plot_trace, plot_traces, plot_sample_thinned
+from utils.plotting import highlight_points, plot_density, plot_paths, plot_sample_thinned, plot_trace, plot_traces
 from utils.sampling import to_arviz
 
 # %%
@@ -771,8 +774,29 @@ hmc_thinned_idx = [
 fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
 
+
 # %% [markdown]
-# # Gradient-free Stein thinning
+# # Naive thinning
+
+# %% [markdown]
+# The baseline for comparison is the naive thinning approach where we retain each $i$-th element of the sample.
+
+# %%
+def naive_thin(sample_size, thinned_size):
+    return np.linspace(0, sample_size - 1, thinned_size).astype(int)
+
+
+# %%
+rw_naive_idx = [
+    naive_thin(rw_sample.shape[0], n_points_thinned) for rw_sample in rw_samples
+]
+
+# %%
+fig = plot_sample_thinned(rw_samples, rw_naive_idx, titles, var_labels);
+fig.suptitle('Results of applying naive thinning to samples from the random-walk Metropolis-Hastings algorithm');
+
+# %% [markdown]
+# # Importance resampling
 
 # %% [markdown]
 # We recalculate the (unnormalised) log target density for all samples. Note that in principle we could have stored it during the MCMC run rather than recalculating it.
@@ -799,54 +823,10 @@ hmc_log_p = map_cached(
 
 
 # %%
-def thin_gf_kde(sample, log_p, thinned_size):
-    kde = jgaussian_kde(sample[::1000].T, bw_method='silverman')
-    log_q = np.array(kde.logpdf(sample.T))
-    kde_grad = grad(lambda x: kde.logpdf(x)[0])
-    gradient_q = np.array(jnp.apply_along_axis(kde_grad, 1, sample))
-    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
-
-
-# %%
-# %%time
-rw_gf_kde_idx = [
-    thin_gf_kde(rw_samples[i], rw_log_p[i], n_points_thinned) for i in range(len(rw_samples))
-]
-
-# %%
-fig = plot_sample_thinned(rw_samples, rw_gf_kde_idx, titles, var_labels);
-fig.suptitle('Results of applying gradient-free Stein thinning with a KDE proxy to samples from the random-walk Metropolis-Hastings algorithm');
-
-
-# %% [markdown]
-# # Naive thinning
-
-# %% [markdown]
-# The baseline for comparison is the naive thinning approach where we retain each i-th element of the sample.
-
-# %%
-def naive_thin(sample_size, thinned_size):
-    return np.linspace(0, sample_size - 1, thinned_size).astype(int)
-
-
-# %%
-rw_naive_idx = [
-    naive_thin(rw_sample.shape[0], n_points_thinned) for rw_sample in rw_samples
-]
-
-# %%
-fig = plot_sample_thinned(rw_samples, rw_naive_idx, titles, var_labels);
-fig.suptitle('Results of applying naive thinning to samples from the random-walk Metropolis-Hastings algorithm');
-
-
-# %% [markdown]
-# # Importance resampling
-
-# %%
-def ir_thin(log_p, size, rng):
+def ir_thin(log_p, thinned_size, rng):
     p_adj = np.exp(log_p - np.max(log_p))
     w = p_adj / np.sum(p_adj)
-    return rng.choice(len(log_p), size, p=w)
+    return rng.choice(len(log_p), thinned_size, p=w)
 
 
 # %%
@@ -867,6 +847,247 @@ hmc_ir_idx = [
 fig = plot_sample_thinned(hmc_samples, hmc_ir_idx, titles, var_labels);
 fig.suptitle('Results of applying importance resampling to samples from the HMC algorithm');
 
+# %% [markdown]
+# # Gradient-free Stein thinning
+
+# %% [markdown]
+# ## Simple Gaussian proxy
+
+# %% [markdown]
+# A simpler approach is to use a Gaussian multivarite proxy matching the sample mean and covariance:
+
+# %%
+sample = rw_samples[0]
+
+# %%
+sample_mean = np.mean(sample, axis=0)
+sample_cov = np.cov(sample, rowvar=False, ddof=1)
+
+# %%
+log_q = mvn.logpdf(sample, mean=sample_mean, cov=sample_cov)
+gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(sample_cov), sample - sample_mean)
+
+# %% [markdown]
+# The approach fails to select a representative sample in this case:
+
+# %%
+thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned)
+
+# %% [markdown]
+# The integrand in the gradient-free Stein discrepancy calculation is given by:
+# $$ \frac{q(x)}{p(x)} \frac{q(y)}{p(y)} \left( -4 \beta(\beta-1) \frac{\| \Gamma^{-1}(x - y)\|^2}{(c^2 + \|\Gamma^{-1/2} (x - y)\|^2)^{-\beta+2}}
+# - 2 \beta \frac{\text{trace}(\Gamma^{-1}) + \langle \Gamma^{-1} (x - y), \nabla_x \log q(x) - \nabla_y \log q(y)\rangle}{(c^2 + \|\Gamma^{-1/2} (x - y)\|^2)^{-\beta+1}}
+# + \frac{\langle \nabla_x \log q(x), \nabla_y \log q(y) \rangle}{(c^2 + \|\Gamma^{-1/2} (x - y)\|^2)^{-\beta}} \right)$$
+#
+# The coefficient $\frac{q(x)}{p(x)}$ can result in numerical overflow if the orders of magnitude of $q(x)$ and $p(x)$ differ considerably for some points, exceeding the range of exponents that can be represented as floating-point numbers in `numpy`:
+
+# %%
+(np.finfo('float64').maxexp - np.finfo('float64').minexp) * np.log(2)
+
+# %% [markdown]
+# We plot the values of $\log q(x) - \log p(x)$ calculated for the sample points:
+
+# %%
+fig, axs = plt.subplots(1, 2, constrained_layout=True, figsize=(12, 5))
+fig.suptitle('$\\log q(x) - \\log p(x)$ for simple Gaussian proxy');
+sc = axs[0].scatter(sample[:, 0], sample[:, 1], s=0.5, c=log_q - rw_log_p[0]);
+axs[0].set_xlabel('$\\theta_1$');
+axs[0].set_ylabel('$\\theta_2$');
+axs[1].scatter(sample[:, 2], sample[:, 3], s=0.5, c=log_q - rw_log_p[0]);
+axs[1].set_xlabel('$\\theta_3$');
+axs[1].set_ylabel('$\\theta_4$');
+fig.colorbar(sc);
+
+# %% [markdown]
+# We can see that the range of $\log q(x) - \log p(x)$ exceeds what is representable:
+
+# %%
+np.max(log_q - rw_log_p[0])
+
+# %%
+np.min(log_q - rw_log_p[0])
+
+
+# %% [markdown]
+# The thinning procedure selects points that minimise the total discrency, so points with very large coefficient $\frac{q(x)}{p(x)}$ are unlikely to be selected. We can therefore attempt to cap the values of $\log q(x) - \log p(x)$ to make sure values fit into the representable range.
+
+# %%
+def gaussian_range_cap_thin(sample, log_p, thinned_size, range_cap):
+    sample_mean = np.mean(sample, axis=0)
+    sample_cov = np.cov(sample, rowvar=False, ddof=1)
+    log_q = mvn.logpdf(sample, mean=sample_mean, cov=sample_cov)
+    gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(sample_cov), sample - sample_mean)
+    return thin_gf(sample, log_p, log_q, gradient_q, n_points_thinned, range_cap=range_cap)
+
+
+# %%
+range_cap = 200
+rw_gf_gaussian_cap_idx = [
+    gaussian_range_cap_thin(rw_samples[i], rw_log_p[i], n_points_thinned, range_cap=range_cap) for i in range(len(rw_samples))
+]
+
+# %%
+fig = plot_sample_thinned(rw_samples, rw_gf_gaussian_cap_idx, titles, var_labels);
+fig.suptitle('Results of applying gradient-free Stein thinning with a Gaussian proxy to samples from the random-walk Metropolis-Hastings algorithm');
+
+
+# %% [markdown]
+# ## Gaussian mixture proxy
+
+# %%
+def make_mvn_mixture(weights, means, covs):
+    # invert covariances
+    covs_inv = np.linalg.inv(covs)
+
+    k, d = means.shape
+    assert weights.shape == (k,)
+    assert covs.shape == (k, d, d)
+    
+    def rvs(size, random_state):
+        component_samples = [
+            mvn.rvs(mean=means[i], cov=covs[i], size=size, random_state=random_state)
+            for i in range(len(weights))
+        ]
+        indices = rng.choice(len(weights), size=size, p=weights)
+        return np.take_along_axis(
+            np.stack(component_samples, axis=1),
+            indices.reshape(size, 1, 1),
+            axis=1
+        ).squeeze()
+
+    def logpdf(x, axes=slice(None)):
+        f = np.stack([mvn.pdf(x, mean=means[i][axes], cov=covs[i][axes, axes]) for i in range(len(weights))]).reshape(len(weights), -1)
+        return np.log(np.einsum('i,il->l', weights, f))
+    
+    def score(x):
+        # centered sample
+        xc = x[np.newaxis, :, :] - means[:, np.newaxis, :]
+        # pdf evaluations for all components and all elements of the sample
+        f = np.stack([mvn.pdf(x, mean=means[i], cov=covs[i]) for i in range(len(weights))])
+        # numerator or the score function
+        num = np.einsum('i,il,ijk,ilk->lj', weights, f, covs_inv, xc)
+        # denominator or the score function
+        den = np.einsum('i,il->l', weights, f)
+        return -num / den[:, np.newaxis]
+    
+    def logpdf_jax(x):
+        probs = jmvn.pdf(
+            x.reshape(-1, 1, d),
+            mean=means.reshape(1, k, d),
+            cov=covs.reshape(1, k, d, d)
+        )
+        return jnp.squeeze(jnp.log(jnp.sum(weights * probs, axis=1)))
+    
+    return rvs, logpdf, score, logpdf_jax
+
+
+# %%
+n_mixture_components = 100
+
+# %%
+idx = np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+highlight_points(sample[:, :2], idx, ax=axs[0]);
+highlight_points(sample[:, 2:], idx, ax=axs[1]);
+
+# %%
+rvs, logpdf, score, logpdf_jax = make_mvn_mixture(
+    np.ones(len(idx)) / n_mixture_components,
+    sample[idx, :],
+    np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
+)
+
+# %%
+fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+axs[0][0].scatter(sample[:, 0], sample[:, 1], s=0.5);
+axs[0][1].scatter(sample[:, 2], sample[:, 3], s=0.5);
+plot_density(lambda x: logpdf(x, axes=[0, 1]), axs[1][0], axs[0][0].get_xlim(), axs[0][0].get_ylim(), '');
+plot_density(lambda x: logpdf(x, axes=[2, 3]), axs[1][1], axs[0][1].get_xlim(), axs[0][1].get_ylim(), '');
+
+# %%
+log_q = logpdf(sample)
+gradient_q = score(sample)
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+highlight_points(sample[:, :2], np.argwhere(np.isinf(log_q)), ax=axs[0]);
+highlight_points(sample[:, 2:], np.argwhere(np.isinf(log_q)), ax=axs[1]);
+
+# %%
+idx = [0, 100, 200, 300, 500, 2000]
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+highlight_points(sample[:, :2], idx, ax=axs[0]);
+highlight_points(sample[:, 2:], idx, ax=axs[1]);
+
+# %%
+rvs, logpdf, score, logpdf_jax = make_mvn_mixture(
+    np.ones(len(idx)) / n_mixture_components,
+    sample[idx, :],
+    np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
+)
+
+# %%
+fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+axs[0][0].scatter(sample[:, 0], sample[:, 1], s=0.5);
+axs[0][1].scatter(sample[:, 2], sample[:, 3], s=0.5);
+plot_density(lambda x: logpdf(x, axes=[0, 1]), axs[1][0], axs[0][0].get_xlim(), axs[0][0].get_ylim(), '');
+plot_density(lambda x: logpdf(x, axes=[2, 3]), axs[1][1], axs[0][1].get_xlim(), axs[0][1].get_ylim(), '');
+
+# %%
+log_q = logpdf(sample)
+gradient_q = score(sample)
+
+# %%
+rw_gf_gmm_idx = thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned)
+rw_gf_gmm_idx
+
+
+# %%
+def thin_gf_gmm(sample, log_p, thinned_size, idx=None, n_mixture_components=50):
+    idx = idx or np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
+    rvs, logpdf, score, logpdf_jax = make_mvn_mixture(
+        np.ones(len(idx)) / n_mixture_components,
+        sample[idx, :],
+        np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
+    )
+    log_q = logpdf(sample)
+    gradient_q = score(sample)
+    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
+
+
+# %% [markdown]
+# ## KDE proxy
+
+# %% [markdown]
+# The default implementation of KDE places the kernel at every sample points. The density then needs to be estimated at every sample point, thus leading to $O(n^2)$ computational cost. For large $n$, this becomes prohibitive, so we use a fixed number of points in the density estimate.
+
+# %%
+def thin_gf_kde(sample, log_p, thinned_size, n_points_kde=100):
+    idx = np.linspace(0, sample.shape[0] - 1, n_points_kde).astype(int)
+    kde = jgaussian_kde(sample[idx, :].T, bw_method='silverman')
+    log_q = np.array(kde.logpdf(sample.T))
+    kde_grad = grad(lambda x: kde.logpdf(x)[0])
+    gradient_q = np.array(jnp.apply_along_axis(kde_grad, 1, sample))
+    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
+
+
+# %%
+# %%time
+rw_gf_kde_idx = [
+    thin_gf_kde(rw_samples[i], rw_log_p[i], n_points_thinned) for i in range(len(rw_samples))
+]
+
+# %% [markdown]
+# We can see that the approach fails to select a representative subsample in this case:
+
+# %%
+fig = plot_sample_thinned(rw_samples, rw_gf_kde_idx, titles, var_labels);
+fig.suptitle('Results of applying gradient-free Stein thinning with a KDE proxy to samples from the random-walk Metropolis-Hastings algorithm');
+
 
 # %% [markdown]
 # # Energy distance comparison
@@ -880,21 +1101,25 @@ def fit_quality(subsample):
 
 
 # %%
-def create_fit_table(samples, index_lists, row_names, column_names):
+def create_fit_table(samples, entries, column_names):
     return pd.DataFrame(
-        [[fit_quality(samples[i][indices[i]]) for i in range(len(samples))] for indices in index_lists],
-        index=row_names,
+        [[fit_quality(samples[i][indices[i]]) for i in range(len(samples))] for indices, _ in entries],
+        index=[entry[1] for entry in entries],
         columns=column_names,
     )
 
 
 # %%
+comparison_entries = [
+    (rw_thinned_idx, 'Stein thinning'),
+    (rw_naive_idx, 'Naive thinning'),
+    (rw_ir_idx, 'Importance resampling'),
+    (rw_gf_gaussian_cap_idx, 'Gradient-free Stein thinning with Gaussian proxy and range cap'),
+]
+
+# %%
 # %%time
-rw_fit = create_fit_table(
-    rw_samples,
-    [rw_thinned_idx, rw_naive_idx, rw_ir_idx],
-    ['Stein thinning', 'Naive thinning', 'Importance resampling'],
-    range(1, len(rw_samples) + 1))
+rw_fit = create_fit_table(rw_samples, comparison_entries, range(1, len(rw_samples) + 1))
 rw_fit
 
 # %%

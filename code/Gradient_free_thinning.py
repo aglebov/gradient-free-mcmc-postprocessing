@@ -32,6 +32,8 @@ from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _make_
 from stein_thinning.stein import kmat
 from stein_thinning.kernel import make_imq
 
+from utils.plotting import highlight_points, plot_density
+
 
 # %% [markdown]
 # ## Generate from a multivariate normal mixture model
@@ -124,18 +126,6 @@ rvs, logpdf, score, logpdf_jax = make_mvn_mixture(weights, means, covs)
 rng = np.random.default_rng(12345)
 sample_size = 1000
 sample = rvs(sample_size, random_state=rng)
-
-
-# %%
-def plot_density(f, ax, xlim, ylim, title, mesh_size=200, levels=200):
-    x = np.linspace(*xlim, mesh_size)
-    y = np.linspace(*ylim, mesh_size)
-    xy = np.moveaxis(np.stack(np.meshgrid(x, y)), 0, 2).reshape(mesh_size * mesh_size, 2)
-    z = f(xy).reshape(mesh_size, mesh_size)
-
-    ax.contourf(x, y, z, levels=levels);
-    ax.set_title(title);
-
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
@@ -350,8 +340,7 @@ n_rows = (len(entries) - 1) // n_cols + 1
 fig, axs = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4));
 for i, (idx, title) in enumerate(entries):
     ax = axs[i // 2][i % 2]
-    ax.scatter(sample[:, 0], sample[:, 1], alpha=0.3, color='gray');
-    ax.scatter(sample[idx, 0], sample[idx, 1], color='red');
+    highlight_points(sample, idx, ax=ax)
     ax.set_title(title);
 
 # %% [markdown]
@@ -372,23 +361,11 @@ sample2 = rvs(sample_size, random_state=rng)
 # %%
 create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample2)), entries)
 
-
 # %% [markdown]
 # #### Performance of weighted KDE
 
 # %% [markdown]
 # We have seen that the performance of the gradient-free algorithm with a weighted KDE is unsatisfactory. The scatter plot of the selected points suggests that the algorithm picks points that have a low probability. We can confirm this by highlighting the points with the lowest probability in the sample:
-
-# %%
-def highlight_points(sample, indices, show_labels=False, ax=None):
-    if ax is None:
-        fig, ax = plt.subplots()
-    ax.scatter(sample[:, 0], sample[:, 1], alpha=0.3, color='gray');
-    ax.scatter(sample[indices, 0], sample[indices, 1], color='red');
-    if show_labels:
-        for i, ind in enumerate(indices):
-            ax.text(sample[ind, 0], sample[ind, 1], str(ind));
-
 
 # %%
 highlight_points(sample, np.argsort(log_q)[:20])
