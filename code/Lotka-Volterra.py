@@ -269,7 +269,7 @@ def run_rw_sampler(theta_init):
 rw_samples = map_cached(
     lambda item: run_rw_sampler(item[1]),
     enumerate(theta_inits),
-    lambda item: generated_data_dir / f'rw_chain_{item[0]}_seed_{rw_seed}.csv',
+    lambda item: generated_data_dir / f'rw_chain_{item[0]}_seed_{rw_seed}.npy',
     recalculate=recalculate,
     save=save_rw_results,
     mapper=map_parallel
@@ -393,7 +393,7 @@ def calculate_hmc():
 # %%time
 hmc_samples = calculate_iterable_cached(
     calculate_hmc,
-    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{hmc_seed}.csv',
+    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{hmc_seed}.npy',
     len(theta_inits),
     recalculate=recalculate,
     save=save_hmc_results,
@@ -445,7 +445,7 @@ def calculate_hmc_validation():
 
 validation_hmc_samples = calculate_iterable_cached(
     calculate_hmc_validation,
-    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{validation_hmc_seed}.csv',
+    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{validation_hmc_seed}.npy',
     len(theta_inits),
     recalculate=recalculate,
     save=save_validation_hmc_results,
@@ -750,7 +750,7 @@ def parallelise_for_unique(func, sample, row_chunk_size=200):
 rw_grads = map_cached(
     lambda item: parallelise_for_unique(grad_log_posterior, np.exp(item[1])),
     enumerate(rw_samples),
-    lambda item: generated_data_dir / f'rw_gradient_{item[0]}_seed_{rw_seed}.csv',
+    lambda item: generated_data_dir / f'rw_gradient_{item[0]}_seed_{rw_seed}.npy',
     recalculate=recalculate,
     save=save_rw_gradients,
 )
@@ -763,7 +763,7 @@ rw_grads = map_cached(
 hmc_grads = map_cached(
     lambda item: parallelise_for_unique(grad_log_posterior, np.exp(item[1])),
     enumerate(hmc_samples),
-    lambda item: generated_data_dir / f'hmc_gradient_{item[0]}_seed_{hmc_seed}.csv',
+    lambda item: generated_data_dir / f'hmc_gradient_{item[0]}_seed_{hmc_seed}.npy',
     recalculate=recalculate,
     save=save_hmc_gradients,
 )
@@ -834,7 +834,7 @@ fig.suptitle('Results of applying naive thinning to samples from the random-walk
 rw_log_p = map_cached(
     lambda item: parallelise_for_unique(log_target_density, item[1]),
     enumerate(rw_samples),
-    lambda item: generated_data_dir / f'rw_log_p_{item[0]}_seed_{rw_seed}.csv',
+    lambda item: generated_data_dir / f'rw_log_p_{item[0]}_seed_{rw_seed}.npy',
     recalculate=recalculate,
     save=save_rw_log_p,
 )
@@ -844,7 +844,7 @@ rw_log_p = map_cached(
 hmc_log_p = map_cached(
     lambda item: parallelise_for_unique(log_target_density, item[1]),
     enumerate(hmc_samples),
-    lambda item: generated_data_dir / f'hmc_log_p_{item[0]}_seed_{hmc_seed}.csv',
+    lambda item: generated_data_dir / f'hmc_log_p_{item[0]}_seed_{hmc_seed}.npy',
     recalculate=recalculate,
     save=save_hmc_log_p,
 )

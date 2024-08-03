@@ -11,7 +11,7 @@ import jax.numpy as jnp
 
 def save_obj(filepath, obj):
     if isinstance(obj, np.ndarray):
-        np.savetxt(filepath, arr, delimiter=',')
+        np.save(filepath, obj, allow_pickle=False)
     elif isinstance(obj, pd.DataFrame):
         obj.to_csv(filepath)
     elif isinstance(obj, jax.Array):
@@ -23,7 +23,7 @@ def save_obj(filepath, obj):
 
 def read_obj(filepath, expected_type: type):
     if expected_type is np.ndarray:
-        return np.genfromtxt(filepath, delimiter=',')
+        return np.load(filepath, allow_pickle=False)
     elif expected_type is pd.DataFrame:
         return pd.read_csv(filepath, index_col=0)
     elif expected_type is jax.Array:
@@ -51,7 +51,7 @@ def calculate_cached(
     recalculate: bool
         recalculate the results from scratch if True, use the cached result if False
     save: bool
-        save the result of the calculation (only has effect if `recalculate` is True)
+        save the result of the calculation
     expected_type: type
         expected type of the result when retrieving from file
 
@@ -62,10 +62,10 @@ def calculate_cached(
     """
     if recalculate:
         res = calculation()
-        if save:
-            save_obj(filepath, res)
     else:
-        res = read_obj(filepath, expected_type)          
+        res = read_obj(filepath, expected_type)
+    if save:
+        save_obj(filepath, res)
     return res
 
 
@@ -92,7 +92,7 @@ def calculate_iterable_cached(
     recalculate: bool
         recalculate the results from scratch if True, use the cached result if False
     save: bool
-        save the result of the calculation (only has effect if `recalculate` is True)
+        save the result of the calculation
     expected_type: type
         expected type of the result when retrieving from file
 
@@ -103,11 +103,11 @@ def calculate_iterable_cached(
     """
     if recalculate:
         items = list(calculation())
-        if save:
-            for i, item in enumerate(items):
-                save_obj(filepath_gen(i), item)
     else:
         items = [read_obj(filepath_gen(i), expected_type) for i in range(n_items)]
+    if save:
+        for i, item in enumerate(items):
+            save_obj(filepath_gen(i), item)
     return items
 
 
