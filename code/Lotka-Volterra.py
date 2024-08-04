@@ -35,26 +35,22 @@ import arviz as az
 
 import stan
 
-import jax
 from jax import grad, jacobian
 from jax.experimental.ode import odeint
 import jax.numpy as jnp
 from jax.scipy.stats import gaussian_kde as jgaussian_kde
 
-import dask
 import dask.array as da
 from dask.distributed import Client, progress
 
 import dcor
 
-from stein_thinning.stein import kmat
-from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _greedy_search, _validate_sample_and_gradient
+from stein_thinning.thinning import thin, thin_gf
 
 import utils.caching
-from utils.caching import cached, calculate_cached, calculate_iterable_cached, map_cached, subscriptable
-import utils.parallel
+from utils.caching import cached, subscriptable
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
-from utils.plotting import highlight_points, plot_density, plot_paths, plot_sample_thinned, plot_trace, plot_traces
+from utils.plotting import highlight_points, plot_density, plot_paths, plot_sample_thinned, plot_traces
 from utils.sampling import to_arviz
 
 # %%
@@ -271,15 +267,11 @@ def run_rw_sampler(theta_init):
 
 
 # %%
-# %%time
-rw_samples = map_cached(
-    lambda item: run_rw_sampler(item[1]),
-    enumerate(theta_inits),
-    lambda item: generated_data_dir / f'rw_chain_{item[0]}_seed_{rw_seed}.npy',
-    recalculate=recalculate,
-    save=save_rw_results,
-    mapper=map_parallel
-)
+@subscriptable(n=len(theta_inits))
+@cached(recalculate=False, persist=True)
+def rw_samples(i: int) -> np.ndarray:
+    return run_rw_sampler(theta_inits[i])
+
 
 # %% [markdown]
 # Reproduce the first column in Figure S17 from the Supplementary Material:
@@ -306,6 +298,7 @@ def acceptance_rate(sample):
 # %%
 [acceptance_rate(sample) for sample in rw_samples]
 
+
 # %% [markdown]
 # ## Convergence diagnostics
 
@@ -313,14 +306,13 @@ def acceptance_rate(sample):
 # ``arviz`` implements $\hat{R}$ and the expected sample size as recommended in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_. The paper suggests the minimum ESS of 50 for each chain and the threshold value of 1.01 for $\hat{R}$. Based on these thresholds, the chains would be deemed not to have converged:
 
 # %%
-# %%time
-calculate_cached(
-    lambda: az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)])),
-    generated_data_dir / 'rw_az_summary.csv',
-    recalculate=recalculate,
-    save=save_rw_az_summary,
-    expected_type=pd.DataFrame,
-)
+@cached(recalculate=False, persist=True)
+def rw_az_summary() -> pd.DataFrame:
+    return az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
+
+
+# %%
+rw_az_summary()
 
 # %% [markdown]
 # # Sample using Stan
@@ -396,14 +388,23 @@ def calculate_hmc():
 
 
 # %%
-# %%time
-hmc_samples = calculate_iterable_cached(
-    calculate_hmc,
-    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{hmc_seed}.npy',
-    len(theta_inits),
-    recalculate=recalculate,
-    save=save_hmc_results,
-)
+def calculate_hmc(theta_init):
+    inference_model = stan.build(stan_model_spec, data=data, random_seed=hmc_seed)
+    stan_sample = inference_model.sample(
+        num_chains=1,
+        num_samples=n_samples_hmc,
+        save_warmup=True,
+        init=[{'theta': theta_init}]
+    )
+    return extract_chains(stan_sample, 'theta')
+
+
+# %%
+@subscriptable(n=len(theta_inits))
+@cached(recalculate=False, persist=True)
+def hmc_samples(i: int) -> np.ndarray:
+    return calculate_hmc(theta_inits[i])
+
 
 # %%
 titles = [f'$\\theta^{{(0)}} = ({theta[0]}, {theta[1]}, {theta[2]}, {theta[3]})$' for theta in theta_inits]
@@ -420,42 +421,43 @@ plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='
 # %%
 [acceptance_rate(sample) for sample in hmc_samples]
 
+
 # %% [markdown]
 # Based on the thresholds in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_, the diagnostics do not suggest any convergence issues:
 
 # %%
-# %%time
-calculate_cached(
-    lambda: az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)])),
-    generated_data_dir / 'hmc_az_summary.csv',
-    recalculate=recalculate,
-    save=save_hmc_az_summary,
-    expected_type=pd.DataFrame,
-)
+@cached(recalculate=False, persist=True)
+def hmc_az_summary() -> pd.DataFrame:
+    return az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
+
+
+# %%
+hmc_az_summary()
 
 # %% [markdown]
 # ### Validation HMC sample
 
 # %%
-# %%time
 validation_hmc_seed = 98765
 
-def calculate_hmc_validation():
+
+# %%
+def calculate_hmc_validation(theta_init):
     inference_model = stan.build(stan_model_spec, data=data, random_seed=validation_hmc_seed)
     stan_sample = inference_model.sample(
-        num_chains=len(theta_inits),
+        num_chains=1,
         num_samples=n_samples_hmc,
-        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
+        init=[{'theta': np.log(theta_init)}]
     )
     return extract_chains(stan_sample, 'theta')
 
-validation_hmc_samples = calculate_iterable_cached(
-    calculate_hmc_validation,
-    lambda i: generated_data_dir / f'hmc_chain_{i}_seed_{validation_hmc_seed}.npy',
-    len(theta_inits),
-    recalculate=recalculate,
-    save=save_validation_hmc_results,
-)
+
+# %%
+@subscriptable(n=len(theta_inits))
+@cached(recalculate=False, persist=True)
+def validation_hmc_samples(i: int) -> np.ndarray:
+    return calculate_hmc_validation(theta_inits[i])
+
 
 # %%
 fig = plot_traces(validation_hmc_samples, titles=titles, var_labels=var_labels);
@@ -594,19 +596,15 @@ for i in range(q):
     axs[i].set_xlabel('t');
     axs[i].set_ylabel(f'$u_{i + 1}(t)$');
 
+
 # %% [markdown]
 # Calculate the sensitivities:
 
 # %%
-# %%time
-sensitivity_jax = calculate_iterable_cached(
-    lambda: jacobian(solve_lotka_volterra2)(theta),
-    lambda i: generated_data_dir / f'jacobian_jax_{i}.npy',
-    d,
-    recalculate=recalculate,
-    save=save_jacobian_jax,
-    expected_type=jax.Array,
-)
+@cached(recalculate=False, persist=True)
+def sensitivity_jax() -> np.ndarray:
+    return np.stack(jacobian(solve_lotka_volterra2)(theta))
+
 
 # %% [markdown]
 # We confirm that the numerical method agrees with the results from forward sensitivity equations:
@@ -617,7 +615,7 @@ fig.suptitle('Comparison of sensitivities from forward equations and numerical d
 for i in range(2):
     for j in range(d):
         axs[i][j].plot(t, sensitivity_forward[:, 2 + i * d + j], label='Forward equations');
-        axs[i][j].plot(t, sensitivity_jax[j][:, i], label='JAX');
+        axs[i][j].plot(t, sensitivity_jax()[j, :, i], label='JAX');
         axs[i][j].set_xlabel('t');
         axs[i][j].set_ylabel(f'$\\partial u_{{{i + 1}}} / \\partial \\theta_{{{j + 1}}}$');
         axs[i][j].legend();
@@ -752,27 +750,21 @@ def parallelise_for_unique(func, sample, row_chunk_size=200):
 # Calculate the gradients for the random-walk samples:
 
 # %%
-# %%time
-rw_grads = map_cached(
-    lambda item: parallelise_for_unique(grad_log_posterior, np.exp(item[1])),
-    enumerate(rw_samples),
-    lambda item: generated_data_dir / f'rw_gradient_{item[0]}_seed_{rw_seed}.npy',
-    recalculate=recalculate,
-    save=save_rw_gradients,
-)
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_grads(i: int) -> np.ndarray:
+    return parallelise_for_unique(grad_log_posterior, np.exp(rw_samples[i]))
+
 
 # %% [markdown]
 # Calculate the gradients for HMC samples:
 
 # %%
-# %%time
-hmc_grads = map_cached(
-    lambda item: parallelise_for_unique(grad_log_posterior, np.exp(item[1])),
-    enumerate(hmc_samples),
-    lambda item: generated_data_dir / f'hmc_gradient_{item[0]}_seed_{hmc_seed}.npy',
-    recalculate=recalculate,
-    save=save_hmc_gradients,
-)
+@subscriptable
+@cached(recalculate=False, persist=True)
+def hmc_grads(i: int) -> np.ndarray:
+    return parallelise_for_unique(grad_log_posterior, np.exp(hmc_samples[i]))
+
 
 # %% [markdown]
 # # Apply Stein thinning
@@ -798,13 +790,16 @@ def rw_thinned_idx(i: int) -> np.ndarray:
 fig = plot_sample_thinned(rw_samples, rw_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the random-walk Metropolis-Hastings algorithm');
 
+
 # %% [markdown]
 # ### HMC sample
 
 # %%
-hmc_thinned_idx = [
-    thin(np.exp(hmc_samples[i]), hmc_grads[i], n_points_thinned, preconditioner='med') for i in range(len(hmc_samples))
-]
+@subscriptable
+@cached(recalculate=False, persist=True)
+def hmc_thinned_idx(i: int) -> np.ndarray:
+    return thin(np.exp(hmc_samples[i]), hmc_grads[i], n_points_thinned, preconditioner='med')
+
 
 # %%
 fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
@@ -823,13 +818,16 @@ def naive_thin(sample_size, thinned_size):
 
 
 # %%
-rw_naive_idx = [
-    naive_thin(rw_sample.shape[0], n_points_thinned) for rw_sample in rw_samples
-]
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_naive_idx(i: int) -> np.ndarray:
+    return naive_thin(rw_samples[i].shape[0], n_points_thinned)
+
 
 # %%
 fig = plot_sample_thinned(rw_samples, rw_naive_idx, titles, var_labels);
 fig.suptitle('Results of applying naive thinning to samples from the random-walk Metropolis-Hastings algorithm');
+
 
 # %% [markdown]
 # # Importance resampling
@@ -838,24 +836,17 @@ fig.suptitle('Results of applying naive thinning to samples from the random-walk
 # We recalculate the (unnormalised) log target density for all samples. Note that in principle we could have stored it during the MCMC run rather than recalculating it.
 
 # %%
-# %%time
-rw_log_p = map_cached(
-    lambda item: parallelise_for_unique(log_target_density, item[1]),
-    enumerate(rw_samples),
-    lambda item: generated_data_dir / f'rw_log_p_{item[0]}_seed_{rw_seed}.npy',
-    recalculate=recalculate,
-    save=save_rw_log_p,
-)
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_log_p(i: int) -> np.ndarray:
+    return parallelise_for_unique(log_target_density, rw_samples[i])
+
 
 # %%
-# %%time
-hmc_log_p = map_cached(
-    lambda item: parallelise_for_unique(log_target_density, item[1]),
-    enumerate(hmc_samples),
-    lambda item: generated_data_dir / f'hmc_log_p_{item[0]}_seed_{hmc_seed}.npy',
-    recalculate=recalculate,
-    save=save_hmc_log_p,
-)
+@subscriptable
+@cached(recalculate=False, persist=True)
+def hmc_log_p(i: int) -> np.ndarray:
+    return parallelise_for_unique(log_target_density, hmc_samples[i])
 
 
 # %%
@@ -866,22 +857,28 @@ def ir_thin(log_p, thinned_size, rng):
 
 
 # %%
-rw_ir_idx = [
-    ir_thin(log_p, n_points_thinned, rng) for log_p in rw_log_p
-]
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_ir_idx(i: int) -> np.ndarray:
+    return ir_thin(rw_log_p[i], n_points_thinned, rng)
+
 
 # %%
 fig = plot_sample_thinned(rw_samples, rw_ir_idx, titles, var_labels);
 fig.suptitle('Results of applying importance resampling to samples from the random-walk Metropolis-Hastings algorithm');
 
+
 # %%
-hmc_ir_idx = [
-    ir_thin(log_p, n_points_thinned, rng) for log_p in hmc_log_p
-]
+@subscriptable
+@cached(recalculate=False, persist=True)
+def hmc_ir_idx(i: int) -> np.ndarray:
+    return ir_thin(hmc_log_p[i], n_points_thinned, rng)
+
 
 # %%
 fig = plot_sample_thinned(hmc_samples, hmc_ir_idx, titles, var_labels);
 fig.suptitle('Results of applying importance resampling to samples from the HMC algorithm');
+
 
 # %% [markdown]
 # # Gradient-free Stein thinning
@@ -893,21 +890,26 @@ fig.suptitle('Results of applying importance resampling to samples from the HMC 
 # A simpler approach is to use a Gaussian multivarite proxy matching the sample mean and covariance:
 
 # %%
-sample = rw_samples[0]
+def simple_gaussian_thin(sample, log_p, thinned_size):
+    sample_mean = np.mean(sample, axis=0)
+    sample_cov = np.cov(sample, rowvar=False, ddof=1)
+    log_q = mvn.logpdf(sample, mean=sample_mean, cov=sample_cov)
+    gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(sample_cov), sample - sample_mean)
+    return thin_gf(sample, log_p, log_q, gradient_q, n_points_thinned)
+
 
 # %%
-sample_mean = np.mean(sample, axis=0)
-sample_cov = np.cov(sample, rowvar=False, ddof=1)
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_simple_gaussian_idx(i: int) -> np.ndarray:
+    return simple_gaussian_thin(rw_samples[i], rw_log_p[i], n_points_thinned)
 
-# %%
-log_q = mvn.logpdf(sample, mean=sample_mean, cov=sample_cov)
-gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(sample_cov), sample - sample_mean)
 
 # %% [markdown]
 # The approach fails to select a representative sample in this case:
 
 # %%
-thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned)
+rw_simple_gaussian_idx[0]
 
 # %% [markdown]
 # The integrand in the gradient-free Stein discrepancy calculation is given by:
@@ -921,15 +923,19 @@ thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned)
 (np.finfo('float64').maxexp - np.finfo('float64').minexp) * np.log(2)
 
 # %% [markdown]
-# We plot the values of $\log q(x) - \log p(x)$ calculated for the sample points:
+# We plot the values of $\log q(x) - \log p(x)$ calculated for the sample points for the first random-walk chain:
 
 # %%
+sample_mean = np.mean(rw_samples[0], axis=0)
+sample_cov = np.cov(rw_samples[0], rowvar=False, ddof=1)
+log_q = mvn.logpdf(rw_samples[0], mean=sample_mean, cov=sample_cov)
+
 fig, axs = plt.subplots(1, 2, constrained_layout=True, figsize=(12, 5))
 fig.suptitle('$\\log q(x) - \\log p(x)$ for simple Gaussian proxy');
-sc = axs[0].scatter(sample[:, 0], sample[:, 1], s=0.5, c=log_q - rw_log_p[0]);
+sc = axs[0].scatter(rw_samples[0][:, 0], rw_samples[0][:, 1], s=0.5, c=log_q - rw_log_p[0]);
 axs[0].set_xlabel('$\\theta_1$');
 axs[0].set_ylabel('$\\theta_2$');
-axs[1].scatter(sample[:, 2], sample[:, 3], s=0.5, c=log_q - rw_log_p[0]);
+axs[1].scatter(rw_samples[0][:, 2], rw_samples[0][:, 3], s=0.5, c=log_q - rw_log_p[0]);
 axs[1].set_xlabel('$\\theta_3$');
 axs[1].set_ylabel('$\\theta_4$');
 fig.colorbar(sc);
@@ -958,9 +964,14 @@ def gaussian_range_cap_thin(sample, log_p, thinned_size, range_cap):
 
 # %%
 range_cap = 200
-rw_gf_gaussian_cap_idx = [
-    gaussian_range_cap_thin(rw_samples[i], rw_log_p[i], n_points_thinned, range_cap=range_cap) for i in range(len(rw_samples))
-]
+
+
+# %%
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_gf_gaussian_cap_idx(i: int) -> np.ndarray:
+    return gaussian_range_cap_thin(rw_samples[i], rw_log_p[i], n_points_thinned, range_cap=range_cap)
+
 
 # %%
 fig = plot_sample_thinned(rw_samples, rw_gf_gaussian_cap_idx, titles, var_labels);
@@ -1021,78 +1032,121 @@ def make_mvn_mixture(weights, means, covs):
 n_mixture_components = 100
 
 # %%
-idx = np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
+idx = np.linspace(0, rw_samples[0].shape[0] - 1, n_mixture_components).astype(int)
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-highlight_points(sample[:, :2], idx, ax=axs[0]);
-highlight_points(sample[:, 2:], idx, ax=axs[1]);
+highlight_points(rw_samples[0][:, :2], idx, ax=axs[0]);
+highlight_points(rw_samples[0][:, 2:], idx, ax=axs[1]);
+
+# %%
+sample_mean = np.mean(rw_samples[0], axis=0)
+sample_cov = np.cov(rw_samples[0], rowvar=False, ddof=1)
 
 # %%
 rvs, logpdf, score, logpdf_jax = make_mvn_mixture(
     np.ones(len(idx)) / n_mixture_components,
-    sample[idx, :],
+    rw_samples[0][idx, :],
     np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
 )
 
 # %%
 fig, axs = plt.subplots(2, 2, figsize=(12, 10))
-axs[0][0].scatter(sample[:, 0], sample[:, 1], s=0.5);
-axs[0][1].scatter(sample[:, 2], sample[:, 3], s=0.5);
+axs[0][0].scatter(rw_samples[0][:, 0], rw_samples[0][:, 1], s=0.5);
+axs[0][1].scatter(rw_samples[0][:, 2], rw_samples[0][:, 3], s=0.5);
 plot_density(lambda x: logpdf(x, axes=[0, 1]), axs[1][0], axs[0][0].get_xlim(), axs[0][0].get_ylim(), '');
 plot_density(lambda x: logpdf(x, axes=[2, 3]), axs[1][1], axs[0][1].get_xlim(), axs[0][1].get_ylim(), '');
 
+
 # %%
-log_q = logpdf(sample)
-gradient_q = score(sample)
+def make_gmm_proxy(sample, idx):
+    sample_mean = np.mean(sample, axis=0)
+    sample_cov = np.cov(sample, rowvar=False, ddof=1)
+    return make_mvn_mixture(
+        np.ones(len(idx)) / len(idx),
+        sample[idx, :],
+        np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
+    )
+
+
+# %%
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_gmm_log_q(i: int) -> np.ndarray:
+    sample = rw_samples[i]
+    idx = np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
+    rvs, logpdf, score, logpdf_jax = make_gmm_proxy(sample, idx)
+    return logpdf(sample)
+
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_gmm_gradient_q(i: int) -> np.ndarray:
+    sample = rw_samples[i]
+    idx = np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
+    rvs, logpdf, score, logpdf_jax = make_gmm_proxy(sample, idx)
+    return score(sample)
+
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-highlight_points(sample[:, :2], np.argwhere(np.isinf(log_q)), ax=axs[0]);
-highlight_points(sample[:, 2:], np.argwhere(np.isinf(log_q)), ax=axs[1]);
+highlight_points(rw_samples[0][:, :2], np.argwhere(np.isinf(rw_gmm_log_q[0])), ax=axs[0]);
+highlight_points(rw_samples[0][:, 2:], np.argwhere(np.isinf(rw_gmm_log_q[0])), ax=axs[1]);
 
 # %%
 idx = [0, 100, 200, 300, 500, 2000]
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-highlight_points(sample[:, :2], idx, ax=axs[0]);
-highlight_points(sample[:, 2:], idx, ax=axs[1]);
+highlight_points(rw_samples[0][:, :2], idx, ax=axs[0]);
+highlight_points(rw_samples[0][:, 2:], idx, ax=axs[1]);
 
 # %%
 rvs, logpdf, score, logpdf_jax = make_mvn_mixture(
-    np.ones(len(idx)) / n_mixture_components,
-    sample[idx, :],
+    np.ones(len(idx)) / len(idx),
+    rw_samples[0][idx, :],
     np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
 )
 
 # %%
 fig, axs = plt.subplots(2, 2, figsize=(12, 10))
-axs[0][0].scatter(sample[:, 0], sample[:, 1], s=0.5);
-axs[0][1].scatter(sample[:, 2], sample[:, 3], s=0.5);
+axs[0][0].scatter(rw_samples[0][:, 0], rw_samples[0][:, 1], s=0.5);
+axs[0][1].scatter(rw_samples[0][:, 2], rw_samples[0][:, 3], s=0.5);
 plot_density(lambda x: logpdf(x, axes=[0, 1]), axs[1][0], axs[0][0].get_xlim(), axs[0][0].get_ylim(), '');
 plot_density(lambda x: logpdf(x, axes=[2, 3]), axs[1][1], axs[0][1].get_xlim(), axs[0][1].get_ylim(), '');
 
-# %%
-log_q = logpdf(sample)
-gradient_q = score(sample)
 
 # %%
-rw_gf_gmm_idx = thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned)
-rw_gf_gmm_idx
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_gmm_manual_log_q(i: int) -> np.ndarray:
+    sample = rw_samples[i]
+    rvs, logpdf, score, logpdf_jax = make_gmm_proxy(sample, idx)
+    return logpdf(sample)
+
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_gmm_manual_gradient_q(i: int) -> np.ndarray:
+    sample = rw_samples[i]
+    rvs, logpdf, score, logpdf_jax = make_gmm_proxy(sample, idx)
+    return score(sample)
 
 
 # %%
-def thin_gf_gmm(sample, log_p, thinned_size, idx=None, n_mixture_components=50):
-    idx = idx or np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
-    rvs, logpdf, score, logpdf_jax = make_mvn_mixture(
-        np.ones(len(idx)) / n_mixture_components,
-        sample[idx, :],
-        np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_gf_gmm_idx(i: int) -> np.ndarray:
+    return thin_gf(
+        rw_samples[i],
+        rw_log_p[i],
+        rw_gmm_manual_log_q[i],
+        rw_gmm_manual_gradient_q[i],
+        n_points_thinned,
     )
-    log_q = logpdf(sample)
-    gradient_q = score(sample)
-    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
+
+
+# %%
+#rw_gf_gmm_idx = thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned)
+rw_gf_gmm_idx[0]
 
 
 # %% [markdown]
@@ -1112,10 +1166,11 @@ def thin_gf_kde(sample, log_p, thinned_size, n_points_kde=100):
 
 
 # %%
-# %%time
-rw_gf_kde_idx = [
-    thin_gf_kde(rw_samples[i], rw_log_p[i], n_points_thinned) for i in range(len(rw_samples))
-]
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_gf_kde_idx(i: int) -> np.ndarray:
+    return thin_gf_kde(rw_samples[i], rw_log_p[i], n_points_thinned)
+
 
 # %% [markdown]
 # We can see that the approach fails to select a representative subsample in this case:
@@ -1137,29 +1192,41 @@ def fit_quality(subsample):
 
 
 # %%
+comparison_entries = {
+    'Stein thinning': rw_thinned_idx,
+    'Naive thinning': rw_naive_idx,
+    'Importance resampling': rw_ir_idx,
+    'Gradient-free Stein thinning with Gaussian proxy and range cap': rw_gf_gaussian_cap_idx,
+}
+
+
+# %%
 def create_fit_table(samples, entries, column_names):
     return pd.DataFrame(
-        [[fit_quality(samples[i][indices[i]]) for i in range(len(samples))] for indices, _ in entries],
+        [[fit_quality(samples[i][indices[i]]) for i in range(len(samples))] for _, indices in entries.items()],
         index=[entry[1] for entry in entries],
         columns=column_names,
     )
 
 
 # %%
-comparison_entries = [
-    (rw_thinned_idx, 'Stein thinning'),
-    (rw_naive_idx, 'Naive thinning'),
-    (rw_ir_idx, 'Importance resampling'),
-    (rw_gf_gaussian_cap_idx, 'Gradient-free Stein thinning with Gaussian proxy and range cap'),
-]
+@cached(recalculate=False, persist=True)
+def rw_energy_distance_table() -> pd.DataFrame:
+    return create_fit_table(rw_samples, comparison_entries, range(1, len(rw_samples) + 1))
+
 
 # %%
 # %%time
-rw_fit = create_fit_table(rw_samples, comparison_entries, range(1, len(rw_samples) + 1))
-rw_fit
+rw_energy_distance_table()
 
 # %%
-ax = sns.heatmap(rw_fit, annot=True, fmt='.3f', cmap=sns.cm.rocket_r, vmax=np.quantile(rw_fit, 0.9));
+ax = sns.heatmap(
+    rw_energy_distance_table(),
+    annot=True,
+    fmt='.3f',
+    cmap=sns.cm.rocket_r,
+    vmax=np.quantile(rw_energy_distance_table(), 0.9)
+);
 ax.set_title('Energy distance between thinned samples and the validation sample');
 
 # %% [markdown]

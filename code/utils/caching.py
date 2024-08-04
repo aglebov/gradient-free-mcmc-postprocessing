@@ -171,12 +171,15 @@ def map_cached(
     return list(mapper(calculate, items))
 
 
-def cached(recalculate=False, persist=False, filename_gen=None):
+def cached(recalculate=False, persist=True, filename_gen=None):
     """Decorator adding caching on disk to functions"""
     if filename_gen is None:
         def filename_gen(func_name, *args, **kwargs):
             assert len(kwargs) == 0, 'kwargs not supported'
-            return func_name + '_' + '_'.join([str(arg) for arg in args])
+            if len(args) > 0:
+                return func_name + '_' + '_'.join([str(arg) for arg in args])
+            else:
+                return func_name
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -189,17 +192,44 @@ def cached(recalculate=False, persist=False, filename_gen=None):
     return decorator
 
 
-def subscriptable(func):
+def subscriptable(func=None, *, n=None):
     """Decorator to use indexing on a function"""
-    class SubscriptableFuncion:
-        def __init__(self, func):
-            self.func = func
-        def __call__(self, *args, **kwargs):
-            return self.func(*args, **kwargs)
-        def __getitem__(self, key):
-            return self.func(key)
-        def __setitem__(self, key, value):
-            raise NotImplementedError
-        def __delitem__(self, key):
-            raise NotImplementedError      
-    return wraps(func)(SubscriptableFuncion(func))
+    if func is None:
+        # decorator is called with the size parameter
+        assert n is not None, 'n must be provided'
+        def decorator(func):
+            class SubscriptableFuncion:
+                def __init__(self, func):
+                    self.func = func
+                def __call__(self, *args, **kwargs):
+                    return self.func(*args, **kwargs)
+                def __getitem__(self, key):
+                    return self.func(key)
+                def __setitem__(self, key, value):
+                    raise NotImplementedError
+                def __delitem__(self, key):
+                    raise NotImplementedError
+                def __len__(self):
+                    return n
+                def __iter__(self):
+                    for i in range(n):
+                        yield self(i)
+            return wraps(func)(SubscriptableFuncion(func))
+        return decorator
+    else:
+        # decorator is called without the size parameter
+        assert n is None
+        class SubscriptableFuncion:
+            def __init__(self, func):
+                self.func = func
+            def __call__(self, *args, **kwargs):
+                return self.func(*args, **kwargs)
+            def __getitem__(self, key):
+                return self.func(key)
+            def __setitem__(self, key, value):
+                raise NotImplementedError
+            def __delitem__(self, key):
+                raise NotImplementedError
+            def __len__(self):
+                return n
+        return wraps(func)(SubscriptableFuncion(func))
