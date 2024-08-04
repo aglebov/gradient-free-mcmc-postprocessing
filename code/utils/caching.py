@@ -2,6 +2,7 @@ from functools import wraps
 import logging
 from pathlib import Path
 import pickle
+import time
 from typing import Any, Callable, Iterable, Optional
 
 import numpy as np
@@ -24,7 +25,7 @@ def get_path(entry_name: str, expected_type: type) -> Path:
 
 def save_obj(entry_name, obj):
     filepath = get_path(entry_name, type(obj))
-    logger.debug(f'Writing {filepath}')
+    logger.debug('Writing %s', filepath)
     if isinstance(obj, np.ndarray):
         np.save(filepath, obj, allow_pickle=False)
     elif isinstance(obj, pd.DataFrame):
@@ -38,7 +39,7 @@ def save_obj(entry_name, obj):
 
 def read_obj(entry_name, expected_type: type):
     filepath = get_path(entry_name, expected_type)
-    logger.debug(f'Reading {filepath}')
+    logger.debug('Reading %s', filepath)
     if expected_type is np.ndarray:
         return np.load(filepath, allow_pickle=False)
     elif expected_type is pd.DataFrame:
@@ -79,13 +80,16 @@ def calculate_cached(
     """
     filepath = get_path(entry_name, expected_type)
     if recalculate or not filepath.exists():
-        logger.debug(f'Recalculating: {entry_name}')
+        logger.info('Recalculating: %s', entry_name)
+        start_time = time.time()
         res = calculation()
+        end_time = time.time()
+        logger.info('Calculation time for %s: %f s', entry_name, end_time - start_time)
         if save:
             logger.debug(f'Persisting calculation result: {entry_name}')
             save_obj(entry_name, res)
     else:
-        logger.debug(f'Reading from disk cache: {entry_name}')
+        logger.debug('Reading from disk cache: %s', entry_name)
         res = read_obj(entry_name, expected_type)
     return res
 
