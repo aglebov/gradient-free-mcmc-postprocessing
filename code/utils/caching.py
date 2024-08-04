@@ -1,3 +1,5 @@
+from functools import wraps
+import logging
 from pathlib import Path
 import pickle
 from typing import Any, Callable, Iterable, Optional
@@ -9,7 +11,19 @@ import jax
 import jax.numpy as jnp
 
 
+logger = logging.getLogger(__name__)
+cache_dir = Path('.')
+
+
+def adjust_path(filepath, expected_type):
+    if expected_type is np.ndarray:
+        return filepath.parent / f'{filepath.stem}.npy'
+    else:
+        return filepath
+
+
 def save_obj(filepath, obj):
+    filepath = adjust_path(filepath, type(obj))
     if isinstance(obj, np.ndarray):
         np.save(filepath, obj, allow_pickle=False)
     elif isinstance(obj, pd.DataFrame):
@@ -22,6 +36,7 @@ def save_obj(filepath, obj):
 
 
 def read_obj(filepath, expected_type: type):
+    filepath = adjust_path(filepath, expected_type)
     if expected_type is np.ndarray:
         return np.load(filepath, allow_pickle=False)
     elif expected_type is pd.DataFrame:
@@ -60,12 +75,16 @@ def calculate_cached(
     np.ndarray
         result of the calculation
     """
-    if recalculate:
+    filepath = adjust_path(filepath, expected_type)
+    if recalculate or not filepath.exists():
+        logger.debug('Recalculating')
         res = calculation()
+        if save:
+            logger.debug('Persisting calculation result')
+            save_obj(filepath, res)
     else:
+        logger.debug('Reading from disk cache')
         res = read_obj(filepath, expected_type)
-    if save:
-        save_obj(filepath, res)
     return res
 
 
@@ -101,13 +120,16 @@ def calculate_iterable_cached(
     np.ndarray
         result of the calculation
     """
-    if recalculate:
+    cache_available = all(
+        adjust_path(filepath_gen(i), expected_type).exists() for i in range(n_items)
+    )
+    if recalculate or not cache_available:
         items = list(calculation())
+        if save:
+            for i, item in enumerate(items):
+                save_obj(filepath_gen(i), item)
     else:
         items = [read_obj(filepath_gen(i), expected_type) for i in range(n_items)]
-    if save:
-        for i, item in enumerate(items):
-            save_obj(filepath_gen(i), item)
     return items
 
 
@@ -147,3 +169,37 @@ def map_cached(
     def calculate(item):
         return calculate_cached(lambda: func(item), filepath_gen(item), recalculate, save)
     return list(mapper(calculate, items))
+
+
+def cached(recalculate=False, persist=False, filename_gen=None):
+    """Decorator adding caching on disk to functions"""
+    if filename_gen is None:
+        def filename_gen(func_name, *args, **kwargs):
+            assert len(kwargs) == 0, 'kwargs not supported'
+            return func_name + '_' + '_'.join([str(arg) for arg in args])
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            filepath = cache_dir / filename_gen(func.__name__, *args, **kwargs)
+            logger.debug('Cache file path: %s', filepath)
+            expected_type = func.__annotations__['return']
+            calculation = lambda: func(*args, **kwargs)
+            return calculate_cached(calculation, filepath, recalculate, persist, expected_type)
+        return wrapper
+    return decorator
+
+
+def subscriptable(func):
+    """Decorator to use indexing on a function"""
+    class SubscriptableFuncion:
+        def __init__(self, func):
+            self.func = func
+        def __call__(self, *args, **kwargs):
+            return self.func(*args, **kwargs)
+        def __getitem__(self, key):
+            return self.func(key)
+        def __setitem__(self, key, value):
+            raise NotImplementedError
+        def __delitem__(self, key):
+            raise NotImplementedError      
+    return wraps(func)(SubscriptableFuncion(func))

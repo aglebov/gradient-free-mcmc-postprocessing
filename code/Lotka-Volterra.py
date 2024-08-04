@@ -18,7 +18,7 @@ import time
 start_time = time.time()
 
 # %%
-import itertools
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -50,11 +50,16 @@ import dcor
 from stein_thinning.stein import kmat
 from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _greedy_search, _validate_sample_and_gradient
 
-from utils.caching import calculate_cached, calculate_iterable_cached, map_cached
+import utils.caching
+from utils.caching import cached, calculate_cached, calculate_iterable_cached, map_cached, subscriptable
 import utils.parallel
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
 from utils.plotting import highlight_points, plot_density, plot_paths, plot_sample_thinned, plot_trace, plot_traces
 from utils.sampling import to_arviz
+
+# %%
+logging.basicConfig()
+logging.getLogger(utils.caching.__name__).setLevel(logging.DEBUG)
 
 # %%
 import nest_asyncio
@@ -65,6 +70,7 @@ nest_asyncio.apply()
 
 # %%
 generated_data_dir = Path('../data') / 'generated'
+utils.caching.cache_dir = generated_data_dir
 
 # %%
 recalculate = False  # True => perform expensive calculations, False => use stored results
@@ -777,11 +783,13 @@ hmc_grads = map_cached(
 # %%
 n_points_thinned = 20
 
+
 # %%
-# %%time
-rw_thinned_idx = [
-    thin(np.exp(rw_samples[i]), rw_grads[i], n_points_thinned, preconditioner='med') for i in range(len(rw_samples))
-]
+@subscriptable
+@cached(recalculate=False, persist=True)
+def rw_thinned_idx(i: int) -> np.ndarray:
+    return thin(np.exp(rw_samples[i]), rw_grads[i], n_points_thinned, preconditioner='med')
+
 
 # %% [markdown]
 # This reproduces the results shown in Figure S20 in the Supplementary Material:
