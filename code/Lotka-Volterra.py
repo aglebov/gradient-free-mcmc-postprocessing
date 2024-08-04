@@ -1133,7 +1133,6 @@ def rw_gf_gmm_idx(i: int) -> np.ndarray:
 
 
 # %%
-#rw_gf_gmm_idx = thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned)
 rw_gf_gmm_idx[0]
 
 
@@ -1192,7 +1191,7 @@ comparison_entries = {
 def create_fit_table(samples, entries, column_names):
     return pd.DataFrame(
         [[fit_quality(samples[i][indices[i]]) for i in range(len(samples))] for _, indices in entries.items()],
-        index=[entry[1] for entry in entries],
+        index=entries.keys(),
         columns=column_names,
     )
 
