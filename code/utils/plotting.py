@@ -194,9 +194,13 @@ def plot_sample_thinned(
     fig = plt.figure(constrained_layout=True, figsize=(12, 5 * len(traces)))
     subfigs = fig.subfigures(nrows=len(traces), ncols=1)
     for i in range(len(traces)):
+        if len(traces) > 1:
+            subfig = subfigs[i]
+        else:
+            subfig = subfigs
         if titles is not None:
-            subfigs[i].suptitle(titles[i]);
-        axs = subfigs[i].subplots(nrows=1, ncols=2);
+            subfig.suptitle(titles[i]);
+        axs = subfig.subplots(nrows=1, ncols=2);
         plot_thinned_coords(traces[i], thinned_idx[i], 0, 1, axs[0], labels=labels)
         plot_thinned_coords(traces[i], thinned_idx[i], 2, 3, axs[1], labels=labels)
 

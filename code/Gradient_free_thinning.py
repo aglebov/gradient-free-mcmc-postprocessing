@@ -66,7 +66,7 @@ def make_mvn_mixture(weights, means, covs):
         return np.take_along_axis(
             np.stack(component_samples, axis=1),
             indices.reshape(size, 1, 1),
-            axis=1
+            axis=1,
         ).squeeze()
 
     def logpdf(x):
@@ -78,9 +78,9 @@ def make_mvn_mixture(weights, means, covs):
         xc = x[np.newaxis, :, :] - means[:, np.newaxis, :]
         # pdf evaluations for all components and all elements of the sample
         f = np.stack([mvn.pdf(x, mean=means[i], cov=covs[i]) for i in range(len(weights))])
-        # numerator or the score function
+        # numerator of the score function
         num = np.einsum('i,il,ijk,ilk->lj', weights, f, covs_inv, xc)
-        # denominator or the score function
+        # denominator of the score function
         den = np.einsum('i,il->l', weights, f)
         return -num / den[:, np.newaxis]
     

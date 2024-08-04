@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from scipy.integrate import solve_ivp
+from scipy.spatial.distance import cdist
 import scipy.stats as stats
 from scipy.stats import multivariate_normal as mvn
 
@@ -912,6 +913,54 @@ def rw_gf_gaussian_cap_idx(i: int) -> np.ndarray:
 fig = plot_sample_thinned(rw_samples, rw_gf_gaussian_cap_idx, titles, var_labels);
 fig.suptitle('Results of applying gradient-free Stein thinning with a Gaussian proxy to samples from the random-walk Metropolis-Hastings algorithm');
 
+# %% [markdown]
+# ## Manual proxy selection
+
+# %% [markdown]
+# An alternative approach is to try to come up with a proxy that approximates the tails of the target distribution.
+#
+# We plot $\log p(x) - \max \log p(x)$ versus the Euclidean distance from the point attaining the maximum probability and attempt to find a function that provides a reasonable fit:
+
+# %%
+i = 0
+sample = rw_samples[i]
+sample_mean = np.mean(sample, axis=0)
+ref_idx = np.argmax(rw_log_p[i])
+dists = cdist(sample[ref_idx].reshape(1, -1), sample).squeeze()
+prob_diff = rw_log_p[i] - rw_log_p[i][ref_idx]
+
+a = 15000
+b = 80
+c = 0.10
+def log_q_approx(x):
+    return -a * x - np.exp(b * (x - c))
+
+fig, ax = plt.subplots()
+ax.scatter(dists ** 2, prob_diff, s=1);
+
+x = np.linspace(0, 0.22, 100)
+ax.plot(x, log_q_approx(x), color='orange');
+
+ax.set_xlabel('$\\|x - \\text{argmax}\\, \\log p(x) \\|^2$');
+ax.set_ylabel('$\\log p(x) - \\max \\log p(x)$');
+
+# %% [markdown]
+# We use the function and its gradient as the proxies for gradient-free thinning:
+
+# %%
+log_q = log_q_approx(dists)
+gradient_q = -2 * a * (sample - sample[ref_idx]) - 2 * np.exp(b * dists.reshape(-1, 1) - c) * (sample - sample[ref_idx])
+
+# %%
+idx = thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned, range_cap=20)
+fig = plot_sample_thinned([rw_samples[0]], [idx], titles, var_labels);
+
+# %% [markdown]
+# This subsample achieves a fit on par with importance resampling and better than standard Stein thinning:
+
+# %%
+fit_quality(sample[idx])
+
 
 # %% [markdown]
 # ## Gaussian mixture proxy
@@ -934,7 +983,7 @@ def make_mvn_mixture(weights, means, covs):
         return np.take_along_axis(
             np.stack(component_samples, axis=1),
             indices.reshape(size, 1, 1),
-            axis=1
+            axis=1,
         ).squeeze()
 
     def logpdf(x, axes=slice(None)):
@@ -946,9 +995,9 @@ def make_mvn_mixture(weights, means, covs):
         xc = x[np.newaxis, :, :] - means[:, np.newaxis, :]
         # pdf evaluations for all components and all elements of the sample
         f = np.stack([mvn.pdf(x, mean=means[i], cov=covs[i]) for i in range(len(weights))])
-        # numerator or the score function
+        # numerator of the score function
         num = np.einsum('i,il,ijk,ilk->lj', weights, f, covs_inv, xc)
-        # denominator or the score function
+        # denominator of the score function
         den = np.einsum('i,il->l', weights, f)
         return -num / den[:, np.newaxis]
     
@@ -980,7 +1029,7 @@ sample_cov = np.cov(rw_samples[0], rowvar=False, ddof=1)
 
 # %%
 rvs, logpdf, score, logpdf_jax = make_mvn_mixture(
-    np.ones(len(idx)) / n_mixture_components,
+    np.ones(len(idx)) / len(idx),
     rw_samples[0][idx, :],
     np.repeat(sample_cov[np.newaxis, :, :], len(idx), axis=0),
 )
