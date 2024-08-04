@@ -1,4 +1,4 @@
-from functools import wraps
+from functools import lru_cache, wraps
 import logging
 from pathlib import Path
 import pickle
@@ -132,7 +132,7 @@ def map_cached(
     return list(mapper(calculate, items))
 
 
-def cached(recalculate=False, persist=True, filename_gen=None):
+def cached(recalculate=False, persist=True, filename_gen=None, memory_cache_maxsize=None):
     """Decorator adding caching on disk to functions"""
     if filename_gen is None:
         def filename_gen(func_name, *args, **kwargs):
@@ -148,7 +148,7 @@ def cached(recalculate=False, persist=True, filename_gen=None):
             expected_type = func.__annotations__['return']
             calculation = lambda: func(*args, **kwargs)
             return calculate_cached(calculation, entry_name, recalculate, persist, expected_type)
-        return wrapper
+        return lru_cache(memory_cache_maxsize)(wrapper)
     return decorator
 
 

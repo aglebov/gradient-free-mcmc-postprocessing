@@ -376,18 +376,6 @@ hmc_seed = 12345
 
 
 # %%
-def calculate_hmc():
-    inference_model = stan.build(stan_model_spec, data=data, random_seed=hmc_seed)
-    stan_sample = inference_model.sample(
-        num_chains=len(theta_inits),
-        num_samples=n_samples_hmc,
-        save_warmup=True,
-        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
-    )
-    return extract_chains(stan_sample, 'theta')
-
-
-# %%
 def calculate_hmc(theta_init):
     inference_model = stan.build(stan_model_spec, data=data, random_seed=hmc_seed)
     stan_sample = inference_model.sample(
