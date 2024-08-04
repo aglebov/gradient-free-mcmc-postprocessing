@@ -47,6 +47,7 @@ import dcor
 
 from stein_thinning.thinning import thin, thin_gf
 
+from mcmc import sample_chain, metropolis_random_walk_step, rw_proposal_sampler
 import utils.caching
 from utils.caching import cached, subscriptable
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
@@ -71,16 +72,6 @@ utils.caching.cache_dir = generated_data_dir
 # %%
 recalculate = False  # True => perform expensive calculations, False => use stored results
 save_data = recalculate
-save_rw_results = recalculate
-save_hmc_results = recalculate
-save_rw_az_summary = recalculate
-save_hmc_az_summary = recalculate
-save_validation_hmc_results = recalculate
-save_jacobian_jax = recalculate
-save_rw_gradients = recalculate
-save_hmc_gradients = recalculate
-save_rw_log_p = recalculate
-save_hmc_log_p = recalculate
 
 # %% [markdown]
 # We create a Dask client in order to parallelise calculations where possible:
@@ -167,7 +158,7 @@ for i in range(2):
 
 # %%
 if save_data:
-    filepath = Path('../data') / 'generated' / 'lotka_volterra_gaussian_noise.csv'
+    filepath = generated_data_dir / 'lotka_volterra_gaussian_noise.csv'
     df = pd.DataFrame({'u1': y[:, 0], 'u2': y[:, 1]}, index=pd.Index(t, name='t'))
     df.to_csv(filepath)
 
@@ -179,64 +170,11 @@ if save_data:
 # Implement random-walk Metropolis-Hastings algorithm by hand:
 
 # %%
-def sample_chain(theta_sampler, theta_init, n_samples):
-    """Sample a single chain of given length using the starting the values provided"""
-    # set the starting values
-    theta = np.array(theta_init, copy=True)
-
-    # create an array for the trace
-    trace = np.empty((n_samples + 1, d))
-
-    # store the initial values
-    trace[0, :] = theta
-
-    # sample variables
-    for i in range(n_samples):
-        # sample new theta
-        theta = theta_sampler(theta)
-
-        # record the value in the trace
-        trace[i + 1, :] = theta
-
-    return trace
-
-
-# %%
-def metropolis_random_walk_step(log_target_density, proposal_sampler, rng):
-    """Perform a Metropolis-Hastings random walk step"""
-    def sampler(theta):
-        # propose a new value
-        theta_proposed = proposal_sampler(theta)
-
-        # decide whether to accept the new value
-        log_acceptance_probability = np.minimum(
-            0, 
-            log_target_density(theta_proposed) - log_target_density(theta)
-        )
-        u = rng.random()
-        if u == 0 or np.log(u) < log_acceptance_probability:
-            return theta_proposed
-        else:
-            return theta
-
-    return sampler
-
-
-# %%
 def log_target_density(theta):
     _, u = solve_lotka_volterra(np.exp(theta))
     log_likelihood = np.sum(stats.multivariate_normal.logpdf(y - u, mean=means, cov=C))
     log_prior = np.sum(stats.norm.logpdf(theta))
     return log_likelihood + log_prior
-
-
-# %%
-def rw_proposal_sampler(step_size, rng):
-    G = step_size * np.identity(d)
-    def sampler(theta):
-        xi = stats.norm.rvs(size=d, random_state=rng)
-        return theta + G @ xi
-    return sampler
 
 
 # %%
@@ -262,13 +200,13 @@ theta_inits = [
 rw_seed = 12345
 def run_rw_sampler(theta_init):
     rng = np.random.default_rng(rw_seed)
-    theta_sampler = metropolis_random_walk_step(log_target_density, rw_proposal_sampler(step_size, rng), rng)
+    theta_sampler = metropolis_random_walk_step(log_target_density, rw_proposal_sampler(step_size, rng, d), rng)
     return sample_chain(theta_sampler, np.log(theta_init), n_samples_rw)
 
 
 # %%
 @subscriptable(n=len(theta_inits))
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_samples(i: int) -> np.ndarray:
     return run_rw_sampler(theta_inits[i])
 
@@ -306,7 +244,7 @@ def acceptance_rate(sample):
 # ``arviz`` implements $\hat{R}$ and the expected sample size as recommended in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_. The paper suggests the minimum ESS of 50 for each chain and the threshold value of 1.01 for $\hat{R}$. Based on these thresholds, the chains would be deemed not to have converged:
 
 # %%
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_az_summary() -> pd.DataFrame:
     return az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
 
@@ -377,7 +315,11 @@ hmc_seed = 12345
 
 # %%
 def calculate_hmc(theta_init):
-    inference_model = stan.build(stan_model_spec, data=data, random_seed=hmc_seed)
+    inference_model = stan.build(
+        stan_model_spec,
+        data=data,
+        random_seed=hmc_seed
+    )
     stan_sample = inference_model.sample(
         num_chains=1,
         num_samples=n_samples_hmc,
@@ -389,14 +331,12 @@ def calculate_hmc(theta_init):
 
 # %%
 @subscriptable(n=len(theta_inits))
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def hmc_samples(i: int) -> np.ndarray:
     return calculate_hmc(theta_inits[i])
 
 
 # %%
-titles = [f'$\\theta^{{(0)}} = ({theta[0]}, {theta[1]}, {theta[2]}, {theta[3]})$' for theta in theta_inits]
-var_labels = [f'$\\theta_{i + 1}$' for i in range(len(theta_inits))]
 fig = plot_traces(hmc_samples, titles=titles, var_labels=var_labels);
 fig.suptitle('Traces from the HMC algorithm');
 
@@ -414,7 +354,7 @@ plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='
 # Based on the thresholds in _Vehtari et al. (2021) Rank-normalization, folding, and localization: An improved $\hat{R}$ for assessing convergence of MCMC_, the diagnostics do not suggest any convergence issues:
 
 # %%
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def hmc_az_summary() -> pd.DataFrame:
     return az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
 
@@ -425,13 +365,20 @@ hmc_az_summary()
 # %% [markdown]
 # ### Validation HMC sample
 
+# %% [markdown]
+# We generate an additional sample that we will use to evaluate the quality of fit for the proposed methods.
+
 # %%
 validation_hmc_seed = 98765
 
 
 # %%
 def calculate_hmc_validation(theta_init):
-    inference_model = stan.build(stan_model_spec, data=data, random_seed=validation_hmc_seed)
+    inference_model = stan.build(
+        stan_model_spec,
+        data=data,
+        random_seed=validation_hmc_seed
+    )
     stan_sample = inference_model.sample(
         num_chains=1,
         num_samples=n_samples_hmc,
@@ -442,7 +389,7 @@ def calculate_hmc_validation(theta_init):
 
 # %%
 @subscriptable(n=len(theta_inits))
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def validation_hmc_samples(i: int) -> np.ndarray:
     return calculate_hmc_validation(theta_inits[i])
 
@@ -555,7 +502,7 @@ for i in range(q):
 # ## Numerical Jacobian calculation
 
 # %% [markdown]
-# Redefine the function since ``jax.experimental.ode.odeint`` passes the state variable in the first argument and time in the second argument:
+# We need to redefine the function since ``jax.experimental.ode.odeint`` passes the state variable in the first argument and time in the second argument:
 
 # %%
 def lotka_volterra2(u, t, theta):
@@ -589,7 +536,7 @@ for i in range(q):
 # Calculate the sensitivities:
 
 # %%
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def sensitivity_jax() -> np.ndarray:
     return np.stack(jacobian(solve_lotka_volterra2)(theta))
 
@@ -615,7 +562,7 @@ for i in range(2):
 # The Stein Thinning methog requires the gradient of the log-posterior $\nabla \log p$ as input. Below we follow section S3 of the Supplementary Material to derive it.
 #
 # Since $p(x) \propto \mathcal{L}(x) \pi(x)$, we have 
-# $$\nabla \log p(x) = \nabla \log \mathcal{L}(x) + \nabla \log \pi(x).$$
+# $$\nabla_x \log p(x) = \nabla_x \log \mathcal{L}(x) + \nabla_x \log \pi(x).$$
 # Assuming independent errors in observations yields
 # $$\mathcal{L}(x) = \prod_{i=1}^N \phi_i(u(t_i)),$$
 # and thus 
@@ -625,7 +572,7 @@ for i in range(2):
 # = \sum_{i=1}^N \sum_{r=1}^q \frac{\partial}{\partial u_r} (\log \phi_i) \frac{\partial u_r}{\partial x_s},
 # $$
 # which can be written in matrix notation as
-# $$(\nabla \log \mathcal{L})(x) = \sum_{i=1}^N \left(\frac{\partial u}{\partial x}\right)^T (t_i) (\nabla \log \phi_i)(u(t_i)),$$
+# $$(\nabla_x \log \mathcal{L})(x) = \sum_{i=1}^N \left(\frac{\partial u}{\partial x}\right)^T\! (t_i)\, (\nabla_u \log \phi_i)(u(t_i)),$$
 # where
 # $$\left(\frac{\partial u}{\partial x}\right)_{r,s} = \frac{\partial u_r}{\partial x_s}$$
 # is the Jacobian matrix of sensitivities, as obtained earlier.
@@ -637,12 +584,12 @@ for i in range(2):
 # For a multivariate normal distribution of the errors:
 # $$\phi_i(u(t_i)) \propto \exp\left( -\frac{1}{2} (y_i - u(t_i))^T C^{-1} (y_i - u(t_i)) \right)$$
 # we obtain
-# $$(\nabla \log \phi_i)(u(t_i)) = C^{-1}(y_i - u(t_i)).$$
+# $$(\nabla_u \log \phi_i)(u(t_i)) = C^{-1}(y_i - u(t_i)).$$
 #
 # We assume independent standard normal priors for all parameters, therefore
 # $$\pi(x) = \prod_{i=1}^d \pi_i(x_i) \propto \exp\left(-\frac{1}{2}\sum_{i=1}^d x_i^2\right)$$
 # and
-# $$\nabla \log \pi(x) = -x.$$
+# $$\nabla_x \log \pi(x) = -x.$$
 
 # %% [markdown]
 # We calculate the gradient of the log-likelihood from the Jacobian obtained previosly:
@@ -739,7 +686,7 @@ def parallelise_for_unique(func, sample, row_chunk_size=200):
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_grads(i: int) -> np.ndarray:
     return parallelise_for_unique(grad_log_posterior, np.exp(rw_samples[i]))
 
@@ -749,7 +696,7 @@ def rw_grads(i: int) -> np.ndarray:
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def hmc_grads(i: int) -> np.ndarray:
     return parallelise_for_unique(grad_log_posterior, np.exp(hmc_samples[i]))
 
@@ -766,7 +713,7 @@ n_points_thinned = 20
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_thinned_idx(i: int) -> np.ndarray:
     return thin(np.exp(rw_samples[i]), rw_grads[i], n_points_thinned, preconditioner='med')
 
@@ -784,7 +731,7 @@ fig.suptitle('Results of applying Stein thinning to samples from the random-walk
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def hmc_thinned_idx(i: int) -> np.ndarray:
     return thin(np.exp(hmc_samples[i]), hmc_grads[i], n_points_thinned, preconditioner='med')
 
@@ -807,7 +754,7 @@ def naive_thin(sample_size, thinned_size):
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_naive_idx(i: int) -> np.ndarray:
     return naive_thin(rw_samples[i].shape[0], n_points_thinned)
 
@@ -825,14 +772,14 @@ fig.suptitle('Results of applying naive thinning to samples from the random-walk
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_log_p(i: int) -> np.ndarray:
     return parallelise_for_unique(log_target_density, rw_samples[i])
 
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def hmc_log_p(i: int) -> np.ndarray:
     return parallelise_for_unique(log_target_density, hmc_samples[i])
 
@@ -846,7 +793,7 @@ def ir_thin(log_p, thinned_size, rng):
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_ir_idx(i: int) -> np.ndarray:
     return ir_thin(rw_log_p[i], n_points_thinned, rng)
 
@@ -858,7 +805,7 @@ fig.suptitle('Results of applying importance resampling to samples from the rand
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def hmc_ir_idx(i: int) -> np.ndarray:
     return ir_thin(hmc_log_p[i], n_points_thinned, rng)
 
@@ -888,9 +835,9 @@ def simple_gaussian_thin(sample, log_p, thinned_size):
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_simple_gaussian_idx(i: int) -> np.ndarray:
-    return simple_gaussian_thin(rw_samples[i], rw_log_p[i], n_points_thinned)
+    return simple_gaussian_thin(np.exp(rw_samples[i]), rw_log_p[i], n_points_thinned)
 
 
 # %% [markdown]
@@ -956,7 +903,7 @@ range_cap = 200
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_gf_gaussian_cap_idx(i: int) -> np.ndarray:
     return gaussian_range_cap_thin(rw_samples[i], rw_log_p[i], n_points_thinned, range_cap=range_cap)
 
@@ -1059,7 +1006,7 @@ def make_gmm_proxy(sample, idx):
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_gmm_log_q(i: int) -> np.ndarray:
     sample = rw_samples[i]
     idx = np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
@@ -1067,7 +1014,7 @@ def rw_gmm_log_q(i: int) -> np.ndarray:
     return logpdf(sample)
 
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_gmm_gradient_q(i: int) -> np.ndarray:
     sample = rw_samples[i]
     idx = np.linspace(0, sample.shape[0] - 1, n_mixture_components).astype(int)
@@ -1105,14 +1052,14 @@ plot_density(lambda x: logpdf(x, axes=[2, 3]), axs[1][1], axs[0][1].get_xlim(), 
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_gmm_manual_log_q(i: int) -> np.ndarray:
     sample = rw_samples[i]
     rvs, logpdf, score, logpdf_jax = make_gmm_proxy(sample, idx)
     return logpdf(sample)
 
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_gmm_manual_gradient_q(i: int) -> np.ndarray:
     sample = rw_samples[i]
     rvs, logpdf, score, logpdf_jax = make_gmm_proxy(sample, idx)
@@ -1121,7 +1068,7 @@ def rw_gmm_manual_gradient_q(i: int) -> np.ndarray:
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_gf_gmm_idx(i: int) -> np.ndarray:
     return thin_gf(
         rw_samples[i],
@@ -1154,7 +1101,7 @@ def thin_gf_kde(sample, log_p, thinned_size, n_points_kde=100):
 
 # %%
 @subscriptable
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_gf_kde_idx(i: int) -> np.ndarray:
     return thin_gf_kde(rw_samples[i], rw_log_p[i], n_points_thinned)
 
@@ -1197,7 +1144,7 @@ def create_fit_table(samples, entries, column_names):
 
 
 # %%
-@cached(recalculate=False, persist=True)
+@cached(recalculate=recalculate, persist=True)
 def rw_energy_distance_table() -> pd.DataFrame:
     return create_fit_table(rw_samples, comparison_entries, range(1, len(rw_samples) + 1))
 

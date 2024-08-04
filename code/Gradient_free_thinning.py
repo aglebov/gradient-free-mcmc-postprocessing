@@ -30,7 +30,6 @@ from jax.scipy.stats import gaussian_kde as jgaussian_kde
 
 from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _make_stein_gf_integrand
 from stein_thinning.stein import kmat
-from stein_thinning.kernel import make_imq
 
 from utils.plotting import highlight_points, plot_density
 
