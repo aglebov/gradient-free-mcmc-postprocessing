@@ -15,15 +15,16 @@ logger = logging.getLogger(__name__)
 cache_dir = Path('.')
 
 
-def adjust_path(filepath, expected_type):
+def get_path(entry_name: str, expected_type: type) -> Path:
     if expected_type is np.ndarray:
-        return filepath.parent / f'{filepath.stem}.npy'
+        return cache_dir / f'{entry_name}.npy'
     else:
-        return filepath
+        return cache_dir / entry_name
 
 
-def save_obj(filepath, obj):
-    filepath = adjust_path(filepath, type(obj))
+def save_obj(entry_name, obj):
+    filepath = get_path(entry_name, type(obj))
+    logger.debug(f'Writing {filepath}')
     if isinstance(obj, np.ndarray):
         np.save(filepath, obj, allow_pickle=False)
     elif isinstance(obj, pd.DataFrame):
@@ -35,8 +36,9 @@ def save_obj(filepath, obj):
             pickle.dump(obj, f)
 
 
-def read_obj(filepath, expected_type: type):
-    filepath = adjust_path(filepath, expected_type)
+def read_obj(entry_name, expected_type: type):
+    filepath = get_path(entry_name, expected_type)
+    logger.debug(f'Reading {filepath}')
     if expected_type is np.ndarray:
         return np.load(filepath, allow_pickle=False)
     elif expected_type is pd.DataFrame:
@@ -50,7 +52,7 @@ def read_obj(filepath, expected_type: type):
 
 def calculate_cached(
     calculation: Callable[[], np.ndarray],
-    filepath: Path,
+    entry_name: str,
     recalculate: bool = False,
     save: bool = False,
     expected_type: type = np.ndarray,
@@ -75,62 +77,17 @@ def calculate_cached(
     np.ndarray
         result of the calculation
     """
-    filepath = adjust_path(filepath, expected_type)
+    filepath = get_path(entry_name, expected_type)
     if recalculate or not filepath.exists():
-        logger.debug('Recalculating')
+        logger.debug(f'Recalculating: {entry_name}')
         res = calculation()
         if save:
-            logger.debug('Persisting calculation result')
-            save_obj(filepath, res)
+            logger.debug(f'Persisting calculation result: {entry_name}')
+            save_obj(entry_name, res)
     else:
-        logger.debug('Reading from disk cache')
-        res = read_obj(filepath, expected_type)
+        logger.debug(f'Reading from disk cache: {entry_name}')
+        res = read_obj(entry_name, expected_type)
     return res
-
-
-def calculate_iterable_cached(
-    calculation: Callable[[], np.ndarray],
-    filepath_gen: Callable[[int], Path],
-    n_items: Optional[int] = None,
-    recalculate: bool = False,
-    save: bool = False,
-    expected_type: type = np.ndarray,
-) -> np.ndarray:
-    """Perform expensive calculation or retrieve cached result
-
-    The calculated items are stored in separate files.
-
-    Parameters
-    ----------
-    calculation: Callable[[], np.ndarray]
-        calculation to perform
-    filepath_gen: Callable[[int], Path]
-        function returning the path for cache file
-    n_items: Optional[int]
-        number of cached items to retrieve
-    recalculate: bool
-        recalculate the results from scratch if True, use the cached result if False
-    save: bool
-        save the result of the calculation
-    expected_type: type
-        expected type of the result when retrieving from file
-
-    Returns
-    -------
-    np.ndarray
-        result of the calculation
-    """
-    cache_available = all(
-        adjust_path(filepath_gen(i), expected_type).exists() for i in range(n_items)
-    )
-    if recalculate or not cache_available:
-        items = list(calculation())
-        if save:
-            for i, item in enumerate(items):
-                save_obj(filepath_gen(i), item)
-    else:
-        items = [read_obj(filepath_gen(i), expected_type) for i in range(n_items)]
-    return items
 
 
 def map_cached(
@@ -183,11 +140,10 @@ def cached(recalculate=False, persist=True, filename_gen=None):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            filepath = cache_dir / filename_gen(func.__name__, *args, **kwargs)
-            logger.debug('Cache file path: %s', filepath)
+            entry_name = filename_gen(func.__name__, *args, **kwargs)
             expected_type = func.__annotations__['return']
             calculation = lambda: func(*args, **kwargs)
-            return calculate_cached(calculation, filepath, recalculate, persist, expected_type)
+            return calculate_cached(calculation, entry_name, recalculate, persist, expected_type)
         return wrapper
     return decorator
 
