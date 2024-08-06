@@ -50,7 +50,7 @@ from stein_thinning.thinning import thin, thin_gf
 
 from mcmc import sample_chain, metropolis_random_walk_step, rw_proposal_sampler
 import utils.caching
-from utils.caching import cached, subscriptable
+from utils.caching import cached, cached_batch, subscriptable
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
 from utils.plotting import highlight_points, plot_density, plot_paths, plot_sample_thinned, plot_traces
 from utils.sampling import to_arviz
@@ -207,10 +207,14 @@ def run_rw_sampler(theta_init):
 
 # %%
 @subscriptable(n=len(theta_inits))
-@cached(recalculate=recalculate, persist=True)
-def rw_samples(i: int) -> np.ndarray:
-    return run_rw_sampler(theta_inits[i])
+@cached_batch(item_type=np.ndarray, recalculate=recalculate, persist=True)
+def rw_samples() -> list[np.ndarray]:
+    return map_parallel(run_rw_sampler, theta_inits)
 
+
+# %%
+# force calculation in parallel
+rw_samples[0];
 
 # %% [markdown]
 # Reproduce the first column in Figure S17 from the Supplementary Material:
@@ -315,27 +319,26 @@ hmc_seed = 12345
 
 
 # %%
-def calculate_hmc(theta_init):
+@subscriptable(n=len(theta_inits))
+@cached_batch(item_type=np.ndarray, recalculate=recalculate, persist=True)
+def hmc_samples() -> list[np.ndarray]:
     inference_model = stan.build(
         stan_model_spec,
         data=data,
-        random_seed=hmc_seed
+        random_seed=hmc_seed,
     )
     stan_sample = inference_model.sample(
-        num_chains=1,
+        num_chains=len(theta_inits),
         num_samples=n_samples_hmc,
         save_warmup=True,
-        init=[{'theta': theta_init}]
+        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
     )
     return extract_chains(stan_sample, 'theta')
 
 
 # %%
-@subscriptable(n=len(theta_inits))
-@cached(recalculate=recalculate, persist=True)
-def hmc_samples(i: int) -> np.ndarray:
-    return calculate_hmc(theta_inits[i])
-
+# force the calculation
+hmc_samples[0];
 
 # %%
 fig = plot_traces(hmc_samples, titles=titles, var_labels=var_labels);
@@ -374,26 +377,26 @@ validation_hmc_seed = 98765
 
 
 # %%
-def calculate_hmc_validation(theta_init):
+@subscriptable(n=len(theta_inits))
+@cached_batch(item_type=np.ndarray, recalculate=recalculate, persist=True)
+def validation_hmc_samples() -> list[np.ndarray]:
     inference_model = stan.build(
         stan_model_spec,
         data=data,
-        random_seed=validation_hmc_seed
+        random_seed=validation_hmc_seed,
     )
     stan_sample = inference_model.sample(
-        num_chains=1,
+        num_chains=len(theta_inits),
         num_samples=n_samples_hmc,
-        init=[{'theta': np.log(theta_init)}]
+        save_warmup=False,
+        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
     )
     return extract_chains(stan_sample, 'theta')
 
 
 # %%
-@subscriptable(n=len(theta_inits))
-@cached(recalculate=recalculate, persist=True)
-def validation_hmc_samples(i: int) -> np.ndarray:
-    return calculate_hmc_validation(theta_inits[i])
-
+# force the calculation
+validation_hmc_samples[0];
 
 # %%
 fig = plot_traces(validation_hmc_samples, titles=titles, var_labels=var_labels);
@@ -955,6 +958,15 @@ gradient_q = -2 * a * (sample - sample[ref_idx]) - 2 * np.exp(b * dists.reshape(
 idx = thin_gf(sample, rw_log_p[0], log_q, gradient_q, n_points_thinned, range_cap=20)
 fig = plot_sample_thinned([rw_samples[0]], [idx], titles, var_labels);
 
+
+# %% [markdown]
+# We calculate the energy distance between thinned samples and the validation sample:
+
+# %%
+def fit_quality(subsample):
+    return np.sqrt(dcor.energy_distance(validation_sample[::10], subsample))
+
+
 # %% [markdown]
 # This subsample achieves a fit on par with importance resampling and better than standard Stein thinning:
 
@@ -1162,17 +1174,8 @@ def rw_gf_kde_idx(i: int) -> np.ndarray:
 fig = plot_sample_thinned(rw_samples, rw_gf_kde_idx, titles, var_labels);
 fig.suptitle('Results of applying gradient-free Stein thinning with a KDE proxy to samples from the random-walk Metropolis-Hastings algorithm');
 
-
 # %% [markdown]
 # # Energy distance comparison
-
-# %% [markdown]
-# We calculate the energy distance between thinned samples and the validation sample:
-
-# %%
-def fit_quality(subsample):
-    return np.sqrt(dcor.energy_distance(validation_sample[::10], subsample))
-
 
 # %%
 comparison_entries = {
