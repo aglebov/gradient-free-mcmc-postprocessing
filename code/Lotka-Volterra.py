@@ -769,7 +769,7 @@ fig.suptitle('Results of applying naive thinning to samples from the random-walk
 
 
 # %% [markdown]
-# # Importance resampling
+# # Gradient-free Stein thinning
 
 # %% [markdown]
 # We recalculate the (unnormalised) log target density for all samples. Note that in principle we could have stored it during the MCMC run rather than recalculating it.
@@ -787,40 +787,6 @@ def rw_log_p(i: int) -> np.ndarray:
 def hmc_log_p(i: int) -> np.ndarray:
     return parallelise_for_unique(log_target_density, hmc_samples[i])
 
-
-# %%
-def ir_thin(log_p, thinned_size, rng):
-    p_adj = np.exp(log_p - np.max(log_p))
-    w = p_adj / np.sum(p_adj)
-    return rng.choice(len(log_p), thinned_size, p=w)
-
-
-# %%
-@subscriptable
-@cached(recalculate=recalculate, persist=True)
-def rw_ir_idx(i: int) -> np.ndarray:
-    return ir_thin(rw_log_p[i], n_points_thinned, rng)
-
-
-# %%
-fig = plot_sample_thinned(rw_samples, rw_ir_idx, titles, var_labels);
-fig.suptitle('Results of applying importance resampling to samples from the random-walk Metropolis-Hastings algorithm');
-
-
-# %%
-@subscriptable
-@cached(recalculate=recalculate, persist=True)
-def hmc_ir_idx(i: int) -> np.ndarray:
-    return ir_thin(hmc_log_p[i], n_points_thinned, rng)
-
-
-# %%
-fig = plot_sample_thinned(hmc_samples, hmc_ir_idx, titles, var_labels);
-fig.suptitle('Results of applying importance resampling to samples from the HMC algorithm');
-
-
-# %% [markdown]
-# # Gradient-free Stein thinning
 
 # %% [markdown]
 # ## Simple Gaussian proxy
@@ -1181,7 +1147,6 @@ fig.suptitle('Results of applying gradient-free Stein thinning with a KDE proxy 
 comparison_entries = {
     'Stein thinning': rw_thinned_idx,
     'Naive thinning': rw_naive_idx,
-    'Importance resampling': rw_ir_idx,
     'Gradient-free Stein thinning with Gaussian proxy and range cap': rw_gf_gaussian_cap_idx,
 }
 

@@ -174,22 +174,6 @@ thinned_size = 40
 idx_naive = np.linspace(0, sample.shape[0] - 1, thinned_size).astype(int)
 
 # %% [markdown]
-# ### Importance resampling
-
-# %% [markdown]
-# Importance resampling improves on the naive approach by taking into account the posterior probability of samples. Each point is still selected independently.
-#
-# For resampling, we need need the posterior probability for each sample point:
-
-# %%
-log_p = logpdf(sample)
-p = np.exp(log_p)
-
-# %%
-w = p / np.sum(p)
-idx_ir = rng.choice(np.arange(sample.shape[0]), size=thinned_size, p=w)
-
-# %% [markdown]
 # ### Stein thinning
 
 # %% [markdown]
@@ -200,6 +184,13 @@ idx_st = thin(sample, gradient, thinned_size)
 
 # %% [markdown]
 # ### Gradient-free Stein thinning with a simple Gaussian proxy
+
+# %% [markdown]
+# For gradient-free Stein thinning, we need need the posterior probability for each sample point:
+
+# %%
+log_p = logpdf(sample)
+p = np.exp(log_p)
 
 # %% [markdown]
 # When the gradient of the log-posterior is not available, we can resort to a gradient-free approximation. This requires us to select a proxy distribution whose gradient is easily computable. The simplest option is to select a multivariate Gaussian with moments matching the sample:
@@ -263,6 +254,7 @@ idx_gf_kde = thin_gf(sample, log_p, log_q_kde, gradient_q_kde, thinned_size)
 # A further improvement on the KDE approach is to use the posterior probabilities of the sample points as weights in the KDE approximation:
 
 # %%
+w = p / np.sum(p)
 wkde = jgaussian_kde(sample.T, bw_method='silverman', weights=w)
 log_q_wkde, gradient_q_wkde = logpdf_and_score(wkde, sample)
 
@@ -310,7 +302,6 @@ idx_gf_laplace = thin_gf(sample, log_p, log_q_laplace, gradient_q_laplace, thinn
 # %%
 entries = [
     (idx_naive, 'Naive thinning'),
-    (idx_ir, 'Importance resampling'),
     (idx_st, 'Stein thinning'),
     (idx_gf, 'Gradient-free Stein thinning: Gaussian proxy'),
     (idx_gf_kde, 'Gradient-free Stein thinning: KDE proxy'),
