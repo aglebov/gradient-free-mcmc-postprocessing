@@ -132,24 +132,97 @@ The last three challenges are typically addressed by post-processing a sample fr
 
 \todo[inline]{Read and cite Cowles and Carlin (1996) regarding the choice of burn-in length.}
 
-\section{Optimal thinning as a solution to burn-in and thinning}
+\section{Optimal thinning}
 
-Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation of length $n$, \cite{riabizOptimalThinningMCMC2022} set out to identify $m < n$ indices $\pi(j) \in \{1,\dots, n\}$ such that the approximation provided by the subset of samples
-$$\frac{1}{m} \sum_{j=1}^m \delta(X_{\pi(j)})$$
-is closest to the approximation given by the full set
-$$\frac{1}{n} \sum_{i=1}^n \delta(X_i)$$
-in the sense of minimising the kernel Stein discrepancy between the two distributions.
+Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation of length $n$, the empirical approximation of the target posterior distribution is given by
+$$\frac{1}{n} \sum_{i=1}^n \delta(X_i),$$
+where $\delta(x)$ is the Dirac delta function.
+\cite{riabizOptimalThinningMCMC2022} set out to identify $m \ll n$ indices $\pi(j) \in \{1,\dots, n\}$ with $j\in\{1, \dots, m\}$, such that the approximation provided by the subset of samples
+\begin{equation}
+\frac{1}{m} \sum_{j=1}^m \delta(X_{\pi(j)})
+\label{eq:thinned-sample}
+\end{equation}
+is closest to the approximation given by the full set, and thus to the target distribution. The criterion of proximity is based on the kernel Stein discrepancy, itself a special case of the integral probability metric.
 
-The kernel Stein discrepancy is a special case case of an integral probability measure, which is defined for two distributions $P$ and $Q$ on the same measurable space $\mathcal{X}$ as
-$$\mathcal{D}_{\mathcal{F}}(P, Q) \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff Q \right|.$$
+\subsection{Kernel Stein discrepancy}
 
-Using the Langevin Stein operator 
-$$\mathcal{A}_P \mathrm{g} \coloneq p^{-1} \nabla \dot (p \mathrm{g})$$
-for $\mathrm{g} \in \mathcal{G}$, where
+The integral probability metric between two distributions $P$ and $Q$ is defined as
+\begin{equation}
+\mathcal{D}_{\mathcal{F}}(P, Q) \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff Q \right|,
+\label{eq:ipm}
+\end{equation}
+where $\mathcal{X}$ is a measurable space on which both $P$ and $Q$ are defined and $\mathcal{F}$ is a set of test functions. Depending on the choice of $\mathcal{F}$, the definition~(\ref{eq:ipm}) gives rise to different classes of probability metrics, including the well-known Kolmogorov distance, Wasserstein distance and total variation distance.
+
+If $P$ is taken to be the target distribution of an MCMC algorithm, evaluating~(\ref{eq:ipm}) poses two practical challenges:
+\begin{itemize}
+\item the integral $\int_\mathcal{X} f \diff P$ is often analytically intractable,
+\item the supremum requires a non-trivial optimisation procedure to find.
+\end{itemize}
+
+The need to integrate with respect to $P$ can be eliminated if we find a set of function $\mathcal{F}$ for which $\int_\mathcal{X} f \diff P = 0$ for all $f \in \mathcal{F}$. The expression~(\ref{eq:ipm}) then simplifies to
+\begin{equation}
+\mathcal{D}_{\mathcal{F}}(P, Q) = \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff Q \right|.
+\label{eq:stein-discrepancy-sup}
+\end{equation}
+
+\todo[inline]{Check Barbour (1988)}
+
+\cite{gorhamMeasuringSampleQuality2015} propose choosing such a set $\mathcal{F}$ based on the observation that the infinitesimal generator
+$$(\mathcal{L}u)(x) = \lim_{t \to 0} \frac{\mathbb{E}[u(Z_t) | Z_0 = x] - u(x)}{t} \quad \text{for } u:\mathbb{R}^d \to \mathbb{R}$$
+of a Markov process $(Z_t)_{t \geq 0}$ with stationary distribution $P$ satisfies 
+$$\mathbb{E}[(\mathcal{L} u)(Z)] = 0$$
+under mild conditions on $\mathcal{L}$ and $u$. In the specific case of an overdamped Langevin diffusion
+$$\diff Z_t = \frac{1}{2} \nabla \log p(Z_t) \diff t + \diff W_t,$$
+where $W_t$ is the standard Brownian motion, the infinitesimal generator becomes
+$$(\mathcal{L}_P u)(x) = \frac{1}{2} \langle \nabla u(x), \nabla \log p(x)\rangle + \frac{1}{2}\langle \nabla, \nabla u(x) \rangle.$$
+Denoting $g  = \frac{1}{2}\nabla u$, they obtain the Stein operator
+\begin{equation}
+\mathcal{A}_P g = \langle g, \nabla \log p \rangle + \langle \nabla, g \rangle = \langle p^{-1}\nabla, p g \rangle,
+\end{equation}
+and rewrite~(\ref{eq:stein-discrepancy-sup}) as
+\begin{equation}
+\mathcal{D}_{\mathcal{G}}(P, Q) = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff Q \right|
+\label{eq:stein-discrepancy-g}
+\end{equation}
+for a suitably chosen set $\mathcal{G}$.
+
+To remove the optimisation step in the calculation of~(\ref{eq:stein-discrepancy-g}), \cite{gorhamMeasuringSampleQuality2017} employ a reproducing kernel Hilbert space (RKHS) $\mathcal{H}(k)$ with kernel $k: \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$ satisfying the reproducing property:
+$$f(x) = \langle f, k(x, \cdot)\rangle \quad\text{for } f \in \mathcal{H}(k).$$
+Taking the set
 $$\mathcal{G} \coloneq \left\{ \mathrm{g} : \mathbb{R}^d \to \mathbb{R}^d \left| \sum_{i=1}^d \|g_i\|^2_{\mathcal{H}(k)} \leq 1 \right.\right\}$$
-is a unit-ball in a Cartesian product of $d$ copies of a reproducing kernel Hilbert space (RKHS) $\mathcal{H}(k)$ associated with kernel $k$, and taking $\mathcal{F} = \mathcal{A}_P \mathcal{G}$.
+which defines a unit-ball in a Cartesian product of $d$ copies $\mathcal{H}(k)$, Proposition 2 in \cite{gorhamMeasuringSampleQuality2017} establishes that
+\begin{equation}
+\mathcal{D}_{\mathcal{G}}(P, Q) = \sqrt{\mathbb{E}_{Q \times Q}[k_P(X, \tilde{X})]},
+\label{eq:stein-discrepancy-sqrt-expectation}
+\end{equation}
+where $X, \tilde{X} \sim Q$ and $k_P(x, y)$ is given by
+\begin{equation}
+\begin{aligned}
+k_P(x, y) \coloneq 
+&(\nabla_x\cdot\nabla_y) k(x,y) \\
+&+ \langle \nabla_x k(x, y), \nabla_y \log p(y) \rangle + \langle \nabla_y k(x, y), \nabla_x \log p(x) \rangle \\
+&+ k(x, y) \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle.
+\label{eq:deriv:stein-kernel}
+\end{aligned}
+\end{equation}
+Here $\nabla_x$ and $\nabla_y$ are gradients w.r.t.\ $x$ and $y$ and the operator $\nabla_x\cdot\nabla_y$ is defined as:
+$$(\nabla_x\cdot\nabla_y) k(x,y) \coloneq \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} k(x, y).$$
 
-\todo[inline]{Finish up this section}
+When the distribution $Q$ is discrete, as in the approximation~(\ref{eq:thinned-sample}), the discrepancy~(\ref{eq:stein-discrepancy-sqrt-expectation}) becomes
+\begin{equation}
+\mathcal{D}_{\mathcal{G}}(P, Q) = \sqrt{\frac{1}{m^2} \sum_{i,j=1}^m k_P(X_{\pi(i)}, X_{\pi(j)})}.
+\end{equation}
+
+When $k(x, y)$ is chosen to be the inverse multiquadratic kernel
+\begin{equation}
+k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta
+\end{equation}
+with $\beta \in (-1, 0)$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{\mathcal{G}}(P, Q)$ provides convergence control:
+\begin{itemize}
+\item if $\mathcal{D}_{\mathcal{G}}(P, Q_m) \to 0$, then $Q_m$ converges in distribution to $P$ (Theorem 8),
+\item if $Q_m$ converges to $P$ in Wasserstein distance, then $\mathcal{D}_{\mathcal{G}}(P, Q_m) \to 0$ (Proposition 9)
+\end{itemize}
+for a sequence of distributions $Q_m$ under suitable conditions.
 
 \chapter{Methodology}
 
@@ -170,20 +243,8 @@ $$\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i -
 \chapter{Derivations}
 \label{appendix:derivations}
 
-Given a kernel $k(x,y)$, the corresponding Stein kernel is
-\begin{equation}
-\begin{aligned}
-k_P(x, y) \coloneq 
-&\nabla_x\cdot\nabla_y k(x,y) \\
-&+ \langle \nabla_x k(x, y), \nabla_y \log p(y) \rangle + \langle \nabla_y k(x, y), \nabla_x \log p(x) \rangle \\
-&+ k(x, y) \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle,
-\label{eq:appx:deriv:stein-kernel}
-\end{aligned}
-\end{equation}
-where $\nabla_x$ and $\nabla_y$ are gradients w.r.t.\ $x$ and $y$ and the operator $\nabla_x\cdot\nabla_y$ is given by:
-$$\nabla_x\cdot\nabla_y k(x,y) = \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} k(x, y).$$
+Given a kernel $k(x,y)$, the corresponding Stein kernel is given by~(\ref{eq:deriv:stein-kernel}).
 
-\todo[inline]{Add citation for the Stein kernel formula}
 \todo[inline]{Expand this to describe how the Stein operator translates to a new RKHS.}
 
 For the inverse multiquadratic kernel
