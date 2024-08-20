@@ -59,6 +59,11 @@ United Kingdom\\
 
 \chapter*{Introduction}
 
+The Python code accompanying this report can be found at:
+\begin{center}
+\url{https://github.com/aglebov/gradient-free-mcmc-postprocessing}.
+\end{center}
+
 \chapter{Background}
 
 \section{Markov chain Monte Carlo}
@@ -216,6 +221,7 @@ When the distribution $Q$ is discrete, as in the approximation~(\ref{eq:thinned-
 When $k(x, y)$ is chosen to be the inverse multiquadratic kernel
 \begin{equation}
 k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta
+\label{eq:imq}
 \end{equation}
 with $\beta \in (-1, 0)$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{\mathcal{G}}(P, Q)$ provides convergence control:
 \begin{itemize}
@@ -223,6 +229,10 @@ with $\beta \in (-1, 0)$, \cite{gorhamMeasuringSampleQuality2017} demonstrate th
 \item if $Q_m$ converges to $P$ in Wasserstein distance, then $\mathcal{D}_{\mathcal{G}}(P, Q_m) \to 0$ (Proposition 9)
 \end{itemize}
 for a sequence of distributions $Q_m$ under suitable conditions.
+
+\todo[inline]{Explain the meaning of $c$, $\Gamma$ and $\beta$ in IMQ.}
+
+The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in section~\ref{appendix:derivations:imq-stein} and is coded directly in the Python library \texttt{stein-thinning}.
 
 \chapter{Methodology}
 
@@ -243,20 +253,10 @@ $$\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i -
 \chapter{Derivations}
 \label{appendix:derivations}
 
-Given a kernel $k(x,y)$, the corresponding Stein kernel is given by~(\ref{eq:deriv:stein-kernel}).
+\section{Stein kernel based on inverse multiquadratic kernel}
+\label{appendix:derivations:imq-stein}
 
-\todo[inline]{Expand this to describe how the Stein operator translates to a new RKHS.}
-
-For the inverse multiquadratic kernel
-\begin{equation}
-\begin{split}
-k(x, y)
-&= \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta \\
-&=\left(c^2 + (x-y)^T \Gamma^{-1}(x-y)\right)^\beta \\
-&=\left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^\beta \\
-\end{split}
-\end{equation}
-we have
+Given a kernel $k(x,y)$, the corresponding Stein kernel is given by~(\ref{eq:deriv:stein-kernel}). For the inverse multiquadratic kernel~(\ref{eq:imq}) we obtain
 \begin{equation}
 \begin{aligned}
 \frac{\partial}{\partial x_r} k(x,y) 
@@ -297,7 +297,7 @@ which gives us
 \end{aligned}
 \end{equation}
 
-Substituting (\ref{eq:appx:deviv:nablax}), (\ref{eq:appx:deviv:nablay}) and (\ref{eq:appx:deriv:nablax_nablay}) into (\ref{eq:appx:deriv:stein-kernel}), we obtain
+Substituting (\ref{eq:appx:deviv:nablax}), (\ref{eq:appx:deviv:nablay}) and (\ref{eq:appx:deriv:nablax_nablay}) into (\ref{eq:deriv:stein-kernel}), we obtain
 \begin{equation}
 \begin{aligned}
 k_P(x, y)
@@ -312,12 +312,6 @@ k_P(x, y)
 \end{aligned}
 \end{equation}
 where we have denoted $D = c^2 + \| \Gamma^{-1/2}(x-y)\|^2$.
-
-
-\appendix
-\chapter{Code}
-\label{appendix:code}
-
 
 
 \bibliographystyle{plainnat_modified}
