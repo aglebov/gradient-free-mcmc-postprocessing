@@ -9,9 +9,12 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{todonotes}
 \usepackage{mathtools}
+\usepackage{algorithm2e}
 
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator{\trace}{trace}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
 
 \parindent=25pt
 \parskip 0.10in
@@ -62,6 +65,11 @@ United Kingdom\\
 The Python code accompanying this report can be found at:
 \begin{center}
 \url{https://github.com/aglebov/gradient-free-mcmc-postprocessing}.
+\end{center}
+
+The implementation of the gradient-free kernel Stein thinning was contributed by the author directly to the \texttt{stein-thinning} Python library:
+\begin{center}
+\url{https://github.com/wilson-ye-chen/stein_thinning}.
 \end{center}
 
 \chapter{Background}
@@ -170,26 +178,25 @@ The need to integrate with respect to $P$ can be eliminated if we find a set of 
 \label{eq:stein-discrepancy-sup}
 \end{equation}
 
-\todo[inline]{Check Barbour (1988)}
-
 \cite{gorhamMeasuringSampleQuality2015} propose choosing such a set $\mathcal{F}$ based on the observation that the infinitesimal generator
 $$(\mathcal{L}u)(x) = \lim_{t \to 0} \frac{\mathbb{E}[u(Z_t) | Z_0 = x] - u(x)}{t} \quad \text{for } u:\mathbb{R}^d \to \mathbb{R}$$
 of a Markov process $(Z_t)_{t \geq 0}$ with stationary distribution $P$ satisfies 
 $$\mathbb{E}[(\mathcal{L} u)(Z)] = 0$$
-under mild conditions on $\mathcal{L}$ and $u$. In the specific case of an overdamped Langevin diffusion
+under mild conditions on $\mathcal{L}$ and $u$\todo[inline]{Check the conditions.}. In the specific case of an overdamped Langevin diffusion
 $$\diff Z_t = \frac{1}{2} \nabla \log p(Z_t) \diff t + \diff W_t,$$
 where $W_t$ is the standard Brownian motion, the infinitesimal generator becomes
 $$(\mathcal{L}_P u)(x) = \frac{1}{2} \langle \nabla u(x), \nabla \log p(x)\rangle + \frac{1}{2}\langle \nabla, \nabla u(x) \rangle.$$
 Denoting $g  = \frac{1}{2}\nabla u$, they obtain the Stein operator
 \begin{equation}
 \mathcal{A}_P g = \langle g, \nabla \log p \rangle + \langle \nabla, g \rangle = \langle p^{-1}\nabla, p g \rangle,
+\label{eq:stein-operator}
 \end{equation}
 and rewrite~(\ref{eq:stein-discrepancy-sup}) as
 \begin{equation}
 \mathcal{D}_{\mathcal{G}}(P, Q) = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff Q \right|
 \label{eq:stein-discrepancy-g}
 \end{equation}
-for a suitably chosen set $\mathcal{G}$.
+for a suitably chosen set $\mathcal{G}$. Note that $p$ enters~(\ref{eq:stein-operator}) via $\nabla \log p$, so the knowledge of its normalising constant is not required to evaluate the operator.
 
 To remove the optimisation step in the calculation of~(\ref{eq:stein-discrepancy-g}), \cite{gorhamMeasuringSampleQuality2017} employ a reproducing kernel Hilbert space (RKHS) $\mathcal{H}(k)$ with kernel $k: \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$ satisfying the reproducing property:
 $$f(x) = \langle f, k(x, \cdot)\rangle \quad\text{for } f \in \mathcal{H}(k).$$
@@ -212,8 +219,7 @@ k_P(x, y) \coloneq
 \end{equation}
 Here $\nabla_x$ and $\nabla_y$ are gradients w.r.t.\ $x$ and $y$ and the operator $\nabla_x\cdot\nabla_y$ is defined as:
 $$(\nabla_x\cdot\nabla_y) k(x,y) \coloneq \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} k(x, y).$$
-
-When the distribution $Q$ is discrete, as in the approximation~(\ref{eq:thinned-sample}), the discrepancy~(\ref{eq:stein-discrepancy-sqrt-expectation}) becomes
+For a discrete distribution $Q$, as in the approximation~(\ref{eq:thinned-sample}), the discrepancy~(\ref{eq:stein-discrepancy-sqrt-expectation}) becomes
 \begin{equation}
 \mathcal{D}_{\mathcal{G}}(P, Q) = \sqrt{\frac{1}{m^2} \sum_{i,j=1}^m k_P(X_{\pi(i)}, X_{\pi(j)})}.
 \end{equation}
@@ -230,9 +236,27 @@ with $\beta \in (-1, 0)$, \cite{gorhamMeasuringSampleQuality2017} demonstrate th
 \end{itemize}
 for a sequence of distributions $Q_m$ under suitable conditions.
 
+The constant $c$ in~(\ref{eq:imq}) can be set to 1 without loss of generality, and the positive-definite preconditioner matrix $\Gamma$ can be chosen based on the sample at hand. \cite{gorhamMeasuringSampleQuality2017} and \cite{riabizOptimalThinningMCMC2022} settle on the value $\beta = -\frac12$ based on their empirical evaluation.
+
 \todo[inline]{Explain the meaning of $c$, $\Gamma$ and $\beta$ in IMQ.}
 
 The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in section~\ref{appendix:derivations:imq-stein} and is coded directly in the Python library \texttt{stein-thinning}.
+
+\subsection{Stein thinning}
+
+Equipped with the kernel Stein discrepancy (KSD) as defined above, \cite{riabizOptimalThinningMCMC2022} develop a greedy optimisation algorithm to select a subset of points from a sample that minimises the total kernel Stein discrepancy. Rather than attempting to evaluate KSD for all $n \choose m$ combinations of points, they construct a subsample iteratively, selecting a point that minimises the KSD with previously selected points. We reproduce their procedure verbatim in Algorithm~\ref{alg:cap} for the reader's convenience.
+
+\begin{algorithm}
+\caption{Stein thinning}\label{alg:cap}
+\KwData{Sample $(x_i)_{i=1}^n$ from MCMC, Stein kernel $k_P$, desired cardinality $m \in \mathbb{N}$.}
+\KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m \subset \{x_i\}_{i=1}^n$ where $\pi(j) \in \{1, \dots, n\}$.}
+
+\For{$j = 1, \dots, m$}{
+$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_P(x_{\pi(j'}, x_i)$$
+}
+\end{algorithm}
+
+The algorithm was implemented by the authors in the open-source library \texttt{stein-thinning}\footnote{Available from \url{https://github.com/wilson-ye-chen/stein_thinning}.}.
 
 \chapter{Methodology}
 
@@ -290,7 +314,7 @@ Now
 which gives us
 \begin{equation}
 \begin{aligned}
-\nabla_x \cdot \nabla_y k(x,y) 
+(\nabla_x \cdot \nabla_y) k(x,y) 
 &= -4 \beta(\beta-1) \left(c^2 + \| \Gamma^{-1/2}(x-y)\|^2\right)^{\beta-2} \| \Gamma^{-1}(x - y)\|^2 \\
 &- 2\beta \left(c^2 + \|\Gamma^{-1/2}(x-y)\|^2\right)^{\beta-1} \trace(\Gamma^{-1})
 \label{eq:appx:deriv:nablax_nablay}
