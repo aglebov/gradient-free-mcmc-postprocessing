@@ -148,7 +148,10 @@ The last three challenges are typically addressed by post-processing a sample fr
 \section{Optimal thinning}
 
 Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation of length $n$, the empirical approximation of the target posterior distribution is given by
-$$\frac{1}{n} \sum_{i=1}^n \delta(X_i),$$
+\begin{equation}
+\frac{1}{n} \sum_{i=1}^n \delta(X_i),
+\label{eq:discrete-distribution}
+\end{equation}
 where $\delta(x)$ is the Dirac delta function.
 \cite{riabizOptimalThinningMCMC2022} set out to identify $m \ll n$ indices $\pi(j) \in \{1,\dots, n\}$ with $j\in\{1, \dots, m\}$, such that the approximation provided by the subset of samples
 \begin{equation}
@@ -159,12 +162,12 @@ is closest to the approximation given by the full set, and thus to the target di
 
 \subsection{Kernel Stein discrepancy}
 
-The integral probability metric between two distributions $P$ and $Q$ is defined as
+The integral probability metric between two distributions $P$ and $P'$ is defined as
 \begin{equation}
-\mathcal{D}_{\mathcal{F}}(P, Q) \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff Q \right|,
+\mathcal{D}_{\mathcal{F}}(P, P') \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff P' \right|,
 \label{eq:ipm}
 \end{equation}
-where $\mathcal{X}$ is a measurable space on which both $P$ and $Q$ are defined and $\mathcal{F}$ is a set of test functions. Depending on the choice of $\mathcal{F}$, the definition~(\ref{eq:ipm}) gives rise to different classes of probability metrics, including the well-known Kolmogorov distance, Wasserstein distance and total variation distance.
+where $\mathcal{X}$ is a measurable space on which both $P$ and $P'$ are defined and $\mathcal{F}$ is a set of test functions. Depending on the choice of $\mathcal{F}$, the definition~(\ref{eq:ipm}) gives rise to different classes of probability metrics, including the well-known Kolmogorov distance, Wasserstein distance and total variation distance.
 
 If $P$ is taken to be the target distribution of an MCMC algorithm, evaluating~(\ref{eq:ipm}) poses two practical challenges:
 \begin{itemize}
@@ -174,7 +177,7 @@ If $P$ is taken to be the target distribution of an MCMC algorithm, evaluating~(
 
 The need to integrate with respect to $P$ can be eliminated if we find a set of function $\mathcal{F}$ for which $\int_\mathcal{X} f \diff P = 0$ for all $f \in \mathcal{F}$. The expression~(\ref{eq:ipm}) then simplifies to
 \begin{equation}
-\mathcal{D}_{\mathcal{F}}(P, Q) = \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff Q \right|.
+\mathcal{D}_{\mathcal{F}}(P, P') = \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P' \right|.
 \label{eq:stein-discrepancy-sup}
 \end{equation}
 
@@ -193,7 +196,7 @@ Denoting $g  = \frac{1}{2}\nabla u$, they obtain the Stein operator
 \end{equation}
 and rewrite~(\ref{eq:stein-discrepancy-sup}) as
 \begin{equation}
-\mathcal{D}_{\mathcal{G}}(P, Q) = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff Q \right|
+\mathcal{D}_{P, \mathcal{G}}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff P' \right|
 \label{eq:stein-discrepancy-g}
 \end{equation}
 for a suitably chosen set $\mathcal{G}$. Note that $p$ enters~(\ref{eq:stein-operator}) via $\nabla \log p$, so the knowledge of its normalising constant is not required to evaluate the operator.
@@ -201,13 +204,16 @@ for a suitably chosen set $\mathcal{G}$. Note that $p$ enters~(\ref{eq:stein-ope
 To remove the optimisation step in the calculation of~(\ref{eq:stein-discrepancy-g}), \cite{gorhamMeasuringSampleQuality2017} employ a reproducing kernel Hilbert space (RKHS) $\mathcal{H}(k)$ with kernel $k: \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$ satisfying the reproducing property:
 $$f(x) = \langle f, k(x, \cdot)\rangle \quad\text{for } f \in \mathcal{H}(k).$$
 Taking the set
-$$\mathcal{G} \coloneq \left\{ \mathrm{g} : \mathbb{R}^d \to \mathbb{R}^d \left| \sum_{i=1}^d \|g_i\|^2_{\mathcal{H}(k)} \leq 1 \right.\right\}$$
-which defines a unit-ball in a Cartesian product of $d$ copies $\mathcal{H}(k)$, Proposition 2 in \cite{gorhamMeasuringSampleQuality2017} establishes that
 \begin{equation}
-\mathcal{D}_{\mathcal{G}}(P, Q) = \sqrt{\mathbb{E}_{Q \times Q}[k_P(X, \tilde{X})]},
+\mathcal{G} \coloneq \left\{ \mathrm{g} : \mathbb{R}^d \to \mathbb{R}^d \left| \sum_{i=1}^d \|g_i\|^2_{\mathcal{H}(k)} \leq 1 \right.\right\}
+\label{eq:unit-ball}
+\end{equation}
+which defines a unit-ball in a Cartesian product of $d$ copies $\mathcal{H}(k)$, Proposition~2 in \cite{gorhamMeasuringSampleQuality2017} establishes that
+\begin{equation}
+\mathcal{D}_{P}^2(P') = \mathbb{E}_{P' \times P'}[k_P(X, \tilde{X})] = \iint_\mathcal{X} k_P(x, y) \diff p'(x) \diff p'(y),
 \label{eq:stein-discrepancy-sqrt-expectation}
 \end{equation}
-where $X, \tilde{X} \sim Q$ and $k_P(x, y)$ is given by
+where $X, \tilde{X} \sim P'$, $p'$ is the density of $P'$, and $k_P(x, y)$ is given by
 \begin{equation}
 \begin{aligned}
 k_P(x, y) \coloneq 
@@ -217,37 +223,40 @@ k_P(x, y) \coloneq
 \label{eq:deriv:stein-kernel}
 \end{aligned}
 \end{equation}
-Here $\nabla_x$ and $\nabla_y$ are gradients w.r.t.\ $x$ and $y$ and the operator $\nabla_x\cdot\nabla_y$ is defined as:
+Here $\nabla_x$ and $\nabla_y$ are gradients w.r.t.\ $x$ and $y$, respectively, and the operator $\nabla_x\cdot\nabla_y$ is defined as:
 $$(\nabla_x\cdot\nabla_y) k(x,y) \coloneq \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} k(x, y).$$
-For a discrete distribution $Q$, as in the approximation~(\ref{eq:thinned-sample}), the discrepancy~(\ref{eq:stein-discrepancy-sqrt-expectation}) becomes
+Note that we have dropped $\mathcal{G}$ in the subscript of~(\ref{eq:stein-discrepancy-sqrt-expectation}) as the choice of $\mathcal{G}$ does not depend on $P$ or $P'$.
+If $P'$ is a discrete distribution, as in~(\ref{eq:discrete-distribution}), the squared discrepancy~(\ref{eq:stein-discrepancy-sqrt-expectation}) becomes
 \begin{equation}
-\mathcal{D}_{\mathcal{G}}(P, Q) = \sqrt{\frac{1}{m^2} \sum_{i,j=1}^m k_P(X_{\pi(i)}, X_{\pi(j)})}.
+\mathcal{D}_{P}^2\left(\frac{1}{n} \sum_{i=1}^n \delta(x_i)\right) = \frac{1}{n^2} \sum_{i,j=1}^n k_P(x_i, x_j).
+\label{eq:ksd:discrete}
 \end{equation}
 
-When $k(x, y)$ is chosen to be the inverse multiquadratic kernel
+When $k(x, y)$ is chosen to be the inverse multiquadratic kernel (IMQ)
 \begin{equation}
 k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta
 \label{eq:imq}
 \end{equation}
-with $\beta \in (-1, 0)$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{\mathcal{G}}(P, Q)$ provides convergence control:
+with $\beta \in (-1, 0)$, \cite{gorhamMeasuringSampleQuality2017} demonstrate for $\Gamma = I$ that $\mathcal{D}_{P}(P')$ provides convergence control:
 \begin{itemize}
-\item if $\mathcal{D}_{\mathcal{G}}(P, Q_m) \to 0$, then $Q_m$ converges in distribution to $P$ (Theorem 8),
-\item if $Q_m$ converges to $P$ in Wasserstein distance, then $\mathcal{D}_{\mathcal{G}}(P, Q_m) \to 0$ (Proposition 9)
+\item if $\mathcal{D}_{P}(P'_m) \to 0$, then $P'_m$ converges in distribution to $P$ (Theorem 8),
+\item if $P'_m$ converges to $P$ in Wasserstein distance, then $\mathcal{D}_{P}(P'_m) \to 0$ (Proposition 9)
 \end{itemize}
-for a sequence of distributions $Q_m$ under suitable conditions.
+for a sequence of distributions $P'_m$ under suitable conditions. Theorem 4 by \cite{chenSteinPointMarkov2019} justifies the introduction of $\Gamma$ in IMQ.
 
-The constant $c$ in~(\ref{eq:imq}) can be set to 1 without loss of generality, and the positive-definite preconditioner matrix $\Gamma$ can be chosen based on the sample at hand. \cite{gorhamMeasuringSampleQuality2017} and \cite{riabizOptimalThinningMCMC2022} settle on the value $\beta = -\frac12$ based on their empirical evaluation.
+The constant $c$ in~(\ref{eq:imq}) can be set to 1 without loss of generality, and the positive-definite preconditioner matrix $\Gamma$ can be chosen to exploit the geometry of the parameter space. \cite{riabizOptimalThinningMCMC2022} suggest several choices for $\Gamma$, in particular the identity matrix scaled by the median Euclidean distance between points in the sample, possibly further rescaled by $(\log m)^{-1/2}$ where $m$ is the desired cardinality of the thinned sample, or the sample covariance matrix. Based on empirical evaluation, \cite{gorhamMeasuringSampleQuality2017} and \cite{riabizOptimalThinningMCMC2022} settle on the value $\beta = -\frac12$.
 
-\todo[inline]{Explain the meaning of $c$, $\Gamma$ and $\beta$ in IMQ.}
+The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in section~\ref{appendix:derivations:imq-stein} and is coded directly in the Python library \texttt{stein-thinning}\footnote{Available from \url{https://github.com/wilson-ye-chen/stein_thinning}.}.
 
-The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in section~\ref{appendix:derivations:imq-stein} and is coded directly in the Python library \texttt{stein-thinning}.
+Other choices of kernels are possible and offer convergence control, as demonstrated by \cite{chenSteinPoints2018}, however IMQ performed on par or better than the alternatives considered by the authors.
 
 \subsection{Stein thinning}
+\label{sec:stein-thinning}
 
-Equipped with the kernel Stein discrepancy (KSD) as defined above, \cite{riabizOptimalThinningMCMC2022} develop a greedy optimisation algorithm to select a subset of points from a sample that minimises the total kernel Stein discrepancy. Rather than attempting to evaluate KSD for all $n \choose m$ combinations of points, they construct a subsample iteratively, selecting a point that minimises the KSD with previously selected points. We reproduce their procedure verbatim in Algorithm~\ref{alg:cap} for the reader's convenience.
+Equipped with the kernel Stein discrepancy (KSD) as defined above, \cite{riabizOptimalThinningMCMC2022} develop a greedy optimisation algorithm to select a subset of points from a sample that minimises the total kernel Stein discrepancy. Rather than attempting to evaluate KSD for all $n \choose m$ combinations of points, they construct a subsample iteratively, each time picking a point that minimises the KSD with previously selected points. We reproduce their procedure verbatim in Algorithm~\ref{alg:cap} for the reader's convenience. 
 
 \begin{algorithm}
-\caption{Stein thinning}\label{alg:cap}
+\caption{Stein thinning.}\label{alg:cap}
 \KwData{Sample $(x_i)_{i=1}^n$ from MCMC, Stein kernel $k_P$, desired cardinality $m \in \mathbb{N}$.}
 \KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m \subset \{x_i\}_{i=1}^n$ where $\pi(j) \in \{1, \dots, n\}$.}
 
@@ -256,7 +265,40 @@ $$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k
 }
 \end{algorithm}
 
-The algorithm was implemented by the authors in the open-source library \texttt{stein-thinning}\footnote{Available from \url{https://github.com/wilson-ye-chen/stein_thinning}.}.
+The algorithm was implemented by the authors and made available in the open-source library \texttt{stein-thinning}. The computational complexity of the provided implementation is $O(nm)$.
+
+The strength of the method lies in its ability to correct for bias in the input sample, as established by Theorem 3 in \cite{riabizOptimalThinningMCMC2022}, meaning that the algorithm can be applied to samples from MCMC chains that have not converged to the target distribution, provided that its domain is sufficiently explored by the chains. The limitation of the method comes from its reliance on the gradients of the log-target, which may be expensive to compute.
+
+\subsection{Gradient-free kernel Stein discrepancy}
+
+\todo[inline]{Cite cases where gradient cannot be computed easily.}
+
+To address the limitation of the kernel Stein discrepancy, \cite{fisherGradientFreeKernelStein2024} propose the gradient-free Stein operator $\mathcal{S}_{P,Q}$ defined for any differentiable function $g$ as
+\begin{equation}
+\mathcal{S}_{P,Q} g \coloneq \frac{q}{p}(\langle g, \nabla \log q \rangle + \langle \nabla, g \rangle) = \frac{q}{p} \langle q^{-1}\nabla, q g \rangle.
+\end{equation}
+This definition generalises expression~(\ref{eq:stein-operator}) by introducing a proxy distribution $Q$ with density $q$ chosen such that its gradient is easily computable. Note that, again, $q$ is only required to be known up to a normalising constant. When $q = p$, we recover the original Langevin Stein operator~(\ref{eq:stein-operator}).
+
+\cite{fisherGradientFreeKernelStein2024} proceed to show that, under certain regularity conditions,
+\begin{equation*}
+\int_\mathcal{X} \mathcal{S}_{P,Q} \diff P = 0,
+\end{equation*}
+and thus define the gradient-free kernel Stein discrepancy
+\begin{equation*}
+\mathcal{D}_{P, Q}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{S}_{P,Q} g \diff P' \right|
+\end{equation*}
+in analogy with~(\ref{eq:stein-discrepancy-g}). The set $\mathcal{G}$ is the unit-ball given by~(\ref{eq:unit-ball}). Futhermore, Proposition 7 in \cite{fisherGradientFreeKernelStein2024} establishes that
+\begin{equation*}
+\mathcal{D}_{P, Q}^2(P') = \iint_\mathcal{X} \frac{q(x)}{p(x)} \frac{q(y)}{p(y)} k_Q(x, y) \diff p'(x) \diff p'(y),
+\label{eq:gf-ksd:int}
+\end{equation*}
+where $p'$ is the density of distribution $P'$ and $k_Q(x, y)$ is given by~(\ref{eq:deriv:stein-kernel}) with $q$ replacing $p$. For a discrete $P'$, we obtain
+\begin{equation}
+\mathcal{D}_{P, Q}^2\left(\frac{1}{n} \sum_{i=1}^n \delta(x_i)\right) = \frac{1}{n^2} \sum_{i,j=1}^n \frac{q(x_i)}{p(x_i)} \frac{q(x_j)}{p(x_j)} k_Q(x_i, x_j).
+\label{eq:gf-ksd:discrete}
+\end{equation}
+
+Both~(\ref{eq:ksd:discrete}) and~(\ref{eq:gf-ksd:discrete}) can be viewed as averaging the elements of matrices, and this fact can be used to provide an efficient implementation of the greedy search described in Section~\ref{sec:stein-thinning}.
 
 \chapter{Methodology}
 
@@ -334,6 +376,7 @@ k_P(x, y)
 &- 2 \beta D^{\beta-1} (\trace(\Gamma^{-1}) + \langle \Gamma^{-1} (x - y), \nabla_x \log p(x) - \nabla_y \log p(y)\rangle) \\
 &+ D^\beta \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle, \\
 \end{aligned}
+\label{eq:k_P:IMQ}
 \end{equation}
 where we have denoted $D = c^2 + \| \Gamma^{-1/2}(x-y)\|^2$.
 

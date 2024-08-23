@@ -409,15 +409,15 @@
   file = {/home/artem/Zotero/storage/MH5N65FN/Hawkins et al. - 2022 - Online, Informative MCMC Thinning with Kernelized .pdf}
 }
 
-@misc{fisherGradientFreeKernelStein2022,
+@inproceedings{fisherGradientFreeKernelStein2024,
   title = {Gradient-{{Free Kernel Stein Discrepancy}}},
+  booktitle = {Proceedings of the 37th {{International Conference}} on {{Neural Information Processing Systems}}},
   author = {Fisher, Matthew A. and Oates, Chris J.},
-  year = {2022},
-  month = jul,
-  number = {arXiv:2207.02636},
+  year = {2024},
+  month = may,
   eprint = {2207.02636},
   primaryclass = {math, stat},
-  publisher = {arXiv},
+  pages = {23855--23885},
   urldate = {2024-06-24},
   abstract = {Stein discrepancies have emerged as a powerful statistical tool, being applied to fundamental statistical problems including parameter inference, goodness-of-fit testing, and sampling. The canonical Stein discrepancies require the derivatives of a statistical model to be computed, and in return provide theoretical guarantees of convergence detection and control. However, for complex statistical models, the stable numerical computation of derivatives can require bespoke algorithmic development and render Stein discrepancies impractical. This paper focuses on posterior approximation using Stein discrepancies, and introduces a collection of non-canonical Stein discrepancies that are gradient-free, meaning that derivatives of the statistical model are not required. Sufficient conditions for convergence detection and control are established, and applications to sampling and variational inference are presented.},
   archiveprefix = {arXiv},
@@ -759,15 +759,75 @@
   file = {/home/artem/Zotero/storage/6QI4CZZW/costestim.pdf}
 }
 
-@misc{gorhamMeasuringSampleQuality2017,
+@inproceedings{gorhamMeasuringSampleQuality2017,
   title = {Measuring {{Sample Quality}} with {{Kernels}}},
+  booktitle = {Proceedings of the 34th {{International Conference}} on {{Machine Learning}}},
   author = {Gorham, Jackson and Mackey, Lester},
   year = {2017},
-  publisher = {arXiv},
+  publisher = {PLMR},
+  address = {Sydney, Australia},
   doi = {10.48550/ARXIV.1703.01717},
   urldate = {2024-08-19},
   abstract = {Approximate Markov chain Monte Carlo (MCMC) offers the promise of more rapid sampling at the cost of more biased inference. Since standard MCMC diagnostics fail to detect these biases, researchers have developed computable Stein discrepancy measures that provably determine the convergence of a sample to its target distribution. This approach was recently combined with the theory of reproducing kernels to define a closed-form kernel Stein discrepancy (KSD) computable by summing kernel evaluations across pairs of sample points. We develop a theory of weak convergence for KSDs based on Stein's method, demonstrate that commonly used KSDs fail to detect non-convergence even for Gaussian targets, and show that kernels with slowly decaying tails provably determine convergence for a large class of target distributions. The resulting convergence-determining KSDs are suitable for comparing biased, exact, and deterministic sample sequences and simpler to compute and parallelize than alternative Stein discrepancies. We use our tools to compare biased samplers, select sampler hyperparameters, and improve upon existing KSD approaches to one-sample hypothesis testing and sample quality improvement.},
   copyright = {arXiv.org perpetual, non-exclusive license},
   keywords = {FOS: Computer and information sciences,Machine Learning (cs.LG),Machine Learning (stat.ML)},
   file = {/home/artem/Zotero/storage/J99AUBVP/Gorham and Mackey - 2017 - Measuring Sample Quality with Kernels.pdf}
+}
+
+@article{barbourSteinMethodPoisson1988,
+  title = {Stein's {{Method}} and {{Poisson Process Convergence}}},
+  author = {Barbour, A. D.},
+  year = {1988},
+  journal = {Journal of Applied Probability},
+  volume = {25},
+  eprint = {3214155},
+  eprinttype = {jstor},
+  pages = {175--184},
+  issn = {0021-9002},
+  doi = {10.2307/3214155},
+  urldate = {2024-08-21},
+  abstract = {Stein's method of obtaining rates of convergence, well known in normal and Poisson approximation, is considered here in the context of approximation by Poisson point processes, rather than their one-dimensional distributions. A general technique is sketched, whereby the basic ingredients necessary for the application of Stein's method may be derived, and this is applied to a simple problem in Poisson point process approximation.},
+  file = {/home/artem/Zotero/storage/LEBSS5TQ/Barbour - 1988 - Stein's Method and Poisson Process Convergence.pdf}
+}
+
+@inproceedings{chenSteinPointMarkov2019,
+  title = {Stein {{Point Markov Chain Monte Carlo}}},
+  booktitle = {Proceedings of the 36th {{International Conference}} on {{Machine Learning}}},
+  author = {Chen, Wilson Ye and Barp, Alessandro and Briol, Fran{\c c}ois-Xavier and Gorham, Jackson and Girolami, Mark and Mackey, Lester and Oates, {\relax Chris}. J.},
+  year = {2019},
+  publisher = {PLMR},
+  address = {Long Beach, California},
+  doi = {10.48550/ARXIV.1905.03673},
+  urldate = {2024-08-21},
+  abstract = {An important task in machine learning and statistics is the approximation of a probability measure by an empirical measure supported on a discrete point set. Stein Points are a class of algorithms for this task, which proceed by sequentially minimising a Stein discrepancy between the empirical measure and the target and, hence, require the solution of a non-convex optimisation problem to obtain each new point. This paper removes the need to solve this optimisation problem by, instead, selecting each new point based on a Markov chain sample path. This significantly reduces the computational cost of Stein Points and leads to a suite of algorithms that are straightforward to implement. The new algorithms are illustrated on a set of challenging Bayesian inference problems, and rigorous theoretical guarantees of consistency are established.},
+  copyright = {arXiv.org perpetual, non-exclusive license},
+  keywords = {Computation (stat.CO),FOS: Computer and information sciences,FOS: Mathematics,Machine Learning (stat.ML),Methodology (stat.ME),Statistics Theory (math.ST)},
+  file = {/home/artem/Zotero/storage/XVSMEIJE/1905.03673v2.pdf}
+}
+
+@article{detommasoSteinVariationalNewton2018,
+  title = {A {{Stein}} Variational {{Newton}} Method},
+  author = {Detommaso, Gianluca and Cui, Tiangang and Spantini, Alessio and Marzouk, Youssef and Scheichl, Robert},
+  year = {2018},
+  doi = {10.48550/ARXIV.1806.03085},
+  urldate = {2024-08-22},
+  abstract = {Stein variational gradient descent (SVGD) was recently proposed as a general purpose nonparametric variational inference algorithm [Liu \&amp; Wang, NIPS 2016]: it minimizes the Kullback-Leibler divergence between the target distribution and its approximation by implementing a form of functional gradient descent on a reproducing kernel Hilbert space. In this paper, we accelerate and generalize the SVGD algorithm by including second-order information, thereby approximating a Newton-like iteration in function space. We also show how second-order information can lead to more effective choices of kernel. We observe significant computational gains over the original SVGD algorithm in multiple test cases.},
+  copyright = {arXiv.org perpetual, non-exclusive license},
+  keywords = {FOS: Computer and information sciences,FOS: Mathematics,Machine Learning (cs.LG),Machine Learning (stat.ML),Numerical Analysis (math.NA)},
+  file = {/home/artem/Zotero/storage/XFGVFJ9J/Detommaso et al. - 2018 - A Stein variational Newton method.pdf}
+}
+
+@inproceedings{chenSteinPoints2018,
+  title = {Stein {{Points}}},
+  booktitle = {Proceedings of the 35th {{International Conference}} on {{Machine Learning}}},
+  author = {Chen, Wilson Ye and Mackey, Lester and Gorham, Jackson and Briol, Fran{\c c}ois-Xavier and Oates, Chris J.},
+  year = {2018},
+  pages = {843--852},
+  publisher = {PLMR},
+  doi = {10.48550/ARXIV.1803.10161},
+  urldate = {2024-08-22},
+  abstract = {An important task in computational statistics and machine learning is to approximate a posterior distribution \$p(x)\$ with an empirical measure supported on a set of representative points \${\textbackslash}\{x\_i{\textbackslash}\}\_\{i=1\}{\textasciicircum}n\$. This paper focuses on methods where the selection of points is essentially deterministic, with an emphasis on achieving accurate approximation when \$n\$ is small. To this end, we present `Stein Points'. The idea is to exploit either a greedy or a conditional gradient method to iteratively minimise a kernel Stein discrepancy between the empirical measure and \$p(x)\$. Our empirical results demonstrate that Stein Points enable accurate approximation of the posterior at modest computational cost. In addition, theoretical results are provided to establish convergence of the method.},
+  copyright = {arXiv.org perpetual, non-exclusive license},
+  keywords = {Computation (stat.CO),FOS: Computer and information sciences,Machine Learning (cs.LG),Machine Learning (stat.ML)},
+  file = {/home/artem/Zotero/storage/C4N5E2M7/Chen et al. - 2018 - Stein Points.pdf}
 }
