@@ -1,6 +1,7 @@
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
+import matplotlib
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -215,6 +216,11 @@ def plot_density(
     title: str,
     mesh_size: int = 200,
     levels: int = 200,
+    fill: bool = True,
+    level_labels: bool = False,
+    label_format: str = '%2.1f',
+    label_font_size: int = 6,
+    colorbar: bool = False,
 ):
     """Contour plot of probability density
 
@@ -234,14 +240,37 @@ def plot_density(
         number of points along each dimension at which to evaluate `f`
     levels: int
         number of color levels to show on the plot
+    fill: bool
+        if True, use the filled contour plot, otherwise use the outline
+    level_labels: bool
+        if True, show labels for levels on the plot
+    label_format: str
+        the format to use for level labels. Default: %2.1f
+    label_font_size: int
+        the font size to use for level labels. Default: 6
+    colorbar: bool
+        if True, display the colorbar
     """
     x = np.linspace(*xlim, mesh_size)
     y = np.linspace(*ylim, mesh_size)
     xy = np.moveaxis(np.stack(np.meshgrid(x, y)), 0, 2).reshape(mesh_size * mesh_size, 2)
     z = f(xy).reshape(mesh_size, mesh_size)
 
-    ax.contourf(x, y, z, levels=levels);
-    ax.set_title(title);
+    if fill:
+        cs = ax.contourf(x, y, z, levels=levels)
+    else:
+        cs = ax.contour(x, y, z, levels=levels)
+    
+    if level_labels:
+        ax.clabel(cs, fmt=label_format, fontsize=label_font_size)
+    
+    if colorbar:
+        norm = matplotlib.colors.Normalize(vmin=cs.cvalues.min(), vmax=cs.cvalues.max())
+        sm = plt.cm.ScalarMappable(norm=norm, cmap=cs.cmap)
+        sm.set_array([])
+        ax.figure.colorbar(sm, ax=ax, ticks=cs.levels)
+
+    ax.set_title(title)
 
 
 def highlight_points(

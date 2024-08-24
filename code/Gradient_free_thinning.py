@@ -87,7 +87,8 @@ axs[0].set_title('Sample from a multivariate Gaussian mixture');
 xlim = axs[0].get_xlim()
 ylim = axs[0].get_ylim()
 
-plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density')
+plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density', levels=10, fill=False,
+             colorbar=True, level_labels=False)
 
 # %% [markdown]
 # Verify log-pdf against the JAX implementation:
