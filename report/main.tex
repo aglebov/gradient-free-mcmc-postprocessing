@@ -21,7 +21,7 @@
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
 
-\graphicspath{ {../code/figures/} }
+\graphicspath{ {./figures/} }
 
 \parindent=25pt
 \parskip 0.10in
@@ -324,7 +324,7 @@ The choice of a proxy is non-trivial, and \cite{fisherGradientFreeKernelStein202
 
 In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD for importance resampling and variational inference problems. In this dissertation, we adopt their approach for the thinning problem.
 
-\chapter{Methodology and Data}
+\chapter{Methodology and Results}
 
 We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$. With inverse multiquadratic kernel~(\ref{eq:imq}), this results in the expression
 \begin{equation}
@@ -345,12 +345,19 @@ We aim to compare the performance of the proposed algorithm against na\"ive thin
 \item calculate the energy distance between the thinned sample and the target distribution and compare the values across the algorithms.
 \end{enumerate}
 
-\section{Test Cases}
-\label{sec:methodology:data}
+In order to assess how well the selected sample approximates the posterior distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
+$$D^2(F, G) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
+where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
+\begin{equation}
+\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.
+\label{eq:energy-distance:discrete}
+\end{equation}
+
+\todo[inline]{Advantages: objective and easy to calculate.}
 
 We use synthetic data in order to have control over the ground truth in our experiments.
 
-\subsection{Bivariate Gaussian mixture}
+\section{Bivariate Gaussian mixture}
 
 The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm under favourable conditions. Here we take the target distribution to be the bivariate Gaussian mixture with means 
 $$
@@ -375,13 +382,64 @@ and obtain 1000 samples by directly drawing from the target. A scatter plot of t
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includesvg[width=1.0\textwidth]{gaussian-mixture-sample}
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-sample.pdf}
 }
 \caption{(a) Sample from the bivariate Gaussian mixture with two components and (b) its probability density function.
 \label{fig:gmm:sample}}
 \end{figure}
 
-\subsection{Lotka-Volterra inverse problem}
+\paragraph{Na\"ive thinning.} We select elements of the sample with equally-spaced indices.
+
+\paragraph{Stein thinning.} The gradients of the log-target required by the Stein thinning algorithm can be obtained analytically in this case. For multivariate normal distributions with density functions
+$$f_i(x) = \frac{1}{(2\pi)^{d/2} |\Sigma_i|^{1/2}}\exp\left(-\frac{1}{2}(x - \mu_i)^T \Sigma_i^{-1}(x-\mu_i)\right),$$
+where $x \in \mathbb{R}^d$, the mixture density with $k$ components is given by
+$$f(x) = \sum_{i=1}^k w_i f_i(x),$$
+thus the gradient of the log-density is obtained as
+$$\nabla \log f(x) = \frac{\sum_{i=1}^k w_i \nabla f_i(x)}{\sum_{i=1}^k w_i f_i(x)} = -\frac{\sum_{i=1}^k w_i f_i(x) \Sigma_i^{-1}(x - \mu_i)}{\sum_{i=1}^k w_i f_i(x)}.$$
+
+\paragraph{Gradient-free Stein thinning.} This approach requires us to select a proxy distribution. We consider several options, informed by the discussion in \cite{fisherGradientFreeKernelStein2024}:
+\begin{itemize}
+\item a bivariate Gaussian with the mean and covariance matrix matching the sample mean and covariance of the sample,
+\item a Laplace approximation of the target distribution,
+\item a KDE approximation of the target constructed from the sample.
+\end{itemize}
+
+The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplace proxy is striking, so we investigate it further. The other methods produce visually sensible results. One can notice some clustering of points selected by na\"ive thinning, whereas the Stein thinning and the gradient-free approach using the Gaussian proxy and the KDE proxy appear to spread points more evenly.
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-thinned-20.pdf}
+}
+\caption{Thinning results for the bivariate Gaussian mixture.
+\label{fig:gmm:thinned}}
+\end{figure}
+
+To see why the Laplace approximation fails in this case, note the multiplier $q(x) / p(x)$ in~(\ref{eq:gf-ksd:discrete}). Since the thinning algorithm seeks to minimise the sum, it will tend to prefer elements with low values of $q(x) / p(x)$. In Figure~\ref{fig:gmm:laplace-failure}, we plot the values $\log q(x) - \log p(x) = \log (q(x) / p(x))$ for points in the sample. It is clear that the points in the lower left corner of the plot become very attractive for the algorithm to select due to their miniscule values of the multiplier $q(x) / p(x)$. The low ratio $q(x) / p(x)$ for those points is in turn due to the fact that the Laplace approximation picks the larger of the two modes in the mixture, so it cannot serve as a good proxy for the samples coming from the other component. By contract, the simple Gaussian proxy using the sample mean and covariance achieves more uniform values of the multiplier.
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-laplace-proxy.pdf}
+}
+\caption{The values of $\log q(x) - \log p(x)$ for the points in the Gaussian mixture sample under the Laplace proxy and the simple Gaussian proxy.
+\label{fig:gmm:laplace-failure}}
+\end{figure}
+
+Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. We see that the gradient-free approach using the KDE proxy is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. The gradient-free approach using the simple Gaussian proxy proves inferior to the na\"ive approach.
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=0.6\textwidth]{gaussian-mixture-comparison.pdf}
+}
+\caption{Energy distance comparison between thinning approaches for the bivariate Gaussian mixture sample.
+\label{fig:gmm:comparison}}
+\end{figure}
+
+We conclude that even in such a favourable setup, the performance of the gradient-free algorithm depends crucially on the choice of the proxy distribution.
+
+\section{Lotka-Volterra inverse problem}
 
 The Lotka-Volterra model describes the evolution of an idealised ecosystem with two species: predator and prey. The predator population grows when prey is abundant, and the prey population shrinks when there are too many predators. Denoting the size of prey population by $u_1$, and the predator population by $u_2$, the model postulates the following dynamic:
 %\begin{equation}
@@ -406,27 +464,12 @@ We take $u_1(t)$ and $u_2(t)$ to be generated for $t \in [0, 25]$ by the model~(
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includesvg[width=1.0\textwidth]{lotka-volterra}
+	\includegraphics[width=1.0\textwidth]{lotka-volterra.pdf}
 }
 \caption{Solution to the Lotka-Volterra ODEs (black) with added Gaussian noise (grey).
 \label{fig:lotka-volterra:data}}
 \end{figure}
 
-
-\section{Evaluating the approximation}
-\label{sec:methodology:evaluation}
-
-In order to assess how well the selected sample approximates the posterior distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
-$$D^2(F, G) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
-where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
-\begin{equation}
-\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.
-\label{eq:energy-distance:discrete}
-\end{equation}
-
-\todo[inline]{Advantages: objective and easy to calculate.}
-
-\chapter{Results}
 
 \chapter{Conclusions}
 

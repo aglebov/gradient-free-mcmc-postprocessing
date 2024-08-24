@@ -14,6 +14,8 @@
 # ---
 
 # %%
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -33,6 +35,9 @@ from stein_thinning.stein import kmat
 
 from utils.mvn import make_mvn_mixture
 from utils.plotting import highlight_points, plot_density
+
+# %%
+figures_path = Path('../report') / 'figures'
 
 # %% [markdown]
 # ## Generate from a multivariate normal mixture model
@@ -76,31 +81,38 @@ rvs, logpdf, score, logpdf_jax = make_mvn_mixture(weights, means, covs)
 
 # %%
 rng = np.random.default_rng(12345)
+
+# %%
 sample_size = 1000
+
+# %%
 sample = rvs(sample_size, random_state=rng)
+
+# %% [markdown]
+# We plot the sample (a) and the mixture density (b):
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 axs[0].scatter(sample[:, 0], sample[:, 1], alpha=0.3);
-axs[0].set_title('(a)');
+axs[0].set_title('Sample');
 axs[0].set_xlabel('$x_1$');
 axs[0].set_ylabel('$x_2$');
 
 xlim = axs[0].get_xlim()
 ylim = axs[0].get_ylim()
 
-plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, '(b)', levels=10, fill=False,
+plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Density', levels=10, fill=False,
              colorbar=True, level_labels=False)
 axs[1].set_xlabel('$x_1$');
 axs[1].set_ylabel('$x_2$');
 
-fig.savefig('figures/gaussian-mixture-sample.svg');
+fig.savefig(figures_path / 'gaussian-mixture-sample.pdf');
 
 # %% [markdown]
 # Verify log-pdf against the JAX implementation:
 
 # %%
-np.testing.assert_array_almost_equal(logpdf(sample), logpdf_jax(sample))
+np.testing.assert_allclose(logpdf(sample), logpdf_jax(sample), rtol=1e-4)
 
 # %% [markdown]
 # Verify the score function against the JAX implementation:
@@ -122,7 +134,9 @@ np.testing.assert_array_almost_equal(gradient, gradient_jax)
 # Our aim here is to select a subsample of the posterior sample that best represents the posterior distribution.
 
 # %%
-thinned_size = 40
+thinned_size = 1000
+n_points_display = 40
+
 
 # %% [markdown]
 # ### Naive thinning
@@ -131,7 +145,12 @@ thinned_size = 40
 # The easiest way to obtain a subsample from the posterior sample is by retaining each i-th element. In this case, each point is selected independently with the same probability.
 
 # %%
-idx_naive = np.linspace(0, sample.shape[0] - 1, thinned_size).astype(int)
+def naive_thin(n_total_points, thinned_size):
+    return np.linspace(0, n_total_points - 1, thinned_size).astype(int)
+
+
+# %%
+idx_naive = naive_thin(sample.shape[0], n_points_display)
 
 # %% [markdown]
 # ### Stein thinning
@@ -158,6 +177,12 @@ p = np.exp(log_p)
 # %%
 sample_mean = np.mean(sample, axis=0)
 sample_cov = np.cov(sample, rowvar=False, ddof=1)
+
+# %%
+sample_mean
+
+# %%
+sample_cov
 
 # %% [markdown]
 # Gradient-free Stein thinning requires us to provide the log-pdf of the proxy distribution and its score function:
@@ -244,6 +269,12 @@ def laplace_approximation(sample):
 laplace_mean, laplace_cov = laplace_approximation(sample)
 
 # %%
+laplace_mean
+
+# %%
+laplace_cov
+
+# %%
 fig, axs = plt.subplots(1, 3, figsize=(18, 5))
 plot_density(lambda x: mvn.pdf(x, mean=laplace_mean, cov=laplace_cov), axs[0], xlim, ylim, 'Laplace approximation');
 plot_density(lambda x: mvn.pdf(x, mean=sample_mean, cov=sample_cov), axs[1], xlim, ylim, 'Simple Gaussian approximation');
@@ -290,8 +321,56 @@ n_rows = (len(entries) - 1) // n_cols + 1
 fig, axs = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4));
 for i, (idx, title) in enumerate(entries):
     ax = axs[i // 2][i % 2]
-    highlight_points(sample, idx, ax=ax)
+    highlight_points(sample, idx[:n_points_display], ax=ax)
     ax.set_title(title);
+
+# %% [markdown]
+# Produce the figure for the report:
+
+# %%
+entries_report = [
+    (idx_naive, 'Naive thinning'),
+    (idx_st, 'Stein thinning'),
+    (idx_gf, 'Gradient-free Stein thinning: simple Gaussian proxy'),
+    (idx_gf_kde, 'Gradient-free Stein thinning: KDE proxy'),
+    (idx_gf_laplace, 'Gradient-free Stein thinning: Laplace proxy'),
+]
+
+
+# %%
+def centered_subplots(fig, rows):
+    # https://stackoverflow.com/questions/53361373/center-the-third-subplot-in-the-middle-of-second-row-python
+    grid_dim = max(rows)
+    grid_shape = (len(rows), 2 * grid_dim)
+  
+    axs = []
+    
+    jrow = 0
+    for row in rows:
+        offset = 0
+        for i in range(row):
+            if row < grid_dim:
+                offset = grid_dim - row
+            ax_position = (jrow, 2 * i + offset)
+            ax = plt.subplot2grid(grid_shape, ax_position, fig=fig, colspan=2)
+            axs.append(ax)
+            
+        jrow += 1
+        
+    return axs
+
+
+# %%
+fig = plt.figure(constrained_layout=True, figsize=(n_cols * 5, n_rows * 4))
+axs = centered_subplots(fig, [2, 2, 1])
+for i, (idx, title) in enumerate(entries_report):
+    ax = axs[i]
+    highlight_points(sample, idx[:n_points_display], ax=ax)
+    ax.set_title(title);
+    ax.set_xlabel('$x_1$');
+    ax.set_ylabel('$x_2$');
+
+fig.savefig('../report/figures/gaussian-mixture-thinned-20.pdf');
 
 # %% [markdown]
 # #### Energy distance
@@ -300,7 +379,7 @@ for i, (idx, title) in enumerate(entries):
 # Compare the energy distance to the full posterior sample:
 
 # %%
-create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample)), entries)
+create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx[:n_points_display]], sample)), entries)
 
 # %% [markdown]
 # To evaluate how well the thinned sample approximates the true distribution, we draw a new sample from the distribution and calculate the energy distance:
@@ -309,7 +388,38 @@ create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample)), ent
 sample2 = rvs(sample_size, random_state=rng)
 
 # %%
-create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx], sample2)), entries)
+create_table(lambda idx: np.sqrt(dcor.energy_distance(sample[idx[:n_points_display]], sample2)), entries)
+
+# %% [markdown]
+# #### Energy distance plots
+
+# %%
+naive_st = [np.sqrt(dcor.energy_distance(sample[naive_thin(sample.shape[0], n)], sample2)) for n in range(1, thinned_size + 1)]
+
+# %%
+entries_ed = [
+    (idx_st, 'Stein'),
+    (idx_gf, 'Gradient-free: simple Gaussian proxy'),
+    (idx_gf_kde, 'Gradient-free: KDE proxy'),
+]
+
+# %%
+# %%time
+ed_vals = [
+    [np.sqrt(dcor.energy_distance(sample[entry[0][:n]], sample2)) for n in range(1, thinned_size + 1)]
+    for entry in entries_ed
+]
+
+# %%
+fig, ax = plt.subplots(constrained_layout=True)
+ax.plot(naive_st, label='Naive');
+for i, entry in enumerate(entries_ed):
+    ax.plot(ed_vals[i], label=entry[1]);
+ax.set_yscale('log');
+ax.set_xlabel('Thinned sample size');
+ax.set_ylabel('Energy distance');
+ax.legend();
+fig.savefig(figures_path / 'gaussian-mixture-comparison.pdf');
 
 # %% [markdown]
 # #### Performance of weighted KDE
@@ -381,10 +491,14 @@ vals = np.concatenate([log_q - log_p, log_q_laplace - log_p])
 vmin = np.min(vals)
 vmax = np.max(vals)
 
-fig, axs = plt.subplots(1, 2, figsize=(12, 5));
+fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True);
 
 scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=log_q_laplace - log_p, vmin=vmin, vmax=vmax);
-axs[0].set_title('$\\log q(x) - \\log p(x)$ for the Laplace approximation');
+axs[0].set_title('Laplace proxy');
+fig.colorbar(scatter, ax=axs[0]);
 
-axs[1].scatter(sample[:, 0], sample[:, 1], c=log_q - log_p, vmin=vmin, vmax=vmax);
-axs[1].set_title('$\\log q(x) - \\log p(x)$ for the simple Gaussian approximation');
+scatter = axs[1].scatter(sample[:, 0], sample[:, 1], c=log_q - log_p, vmin=vmin, vmax=vmax);
+axs[1].set_title('Simple Gaussian proxy');
+fig.colorbar(scatter, ax=axs[1]);
+
+fig.savefig(figures_path / 'gaussian-mixture-laplace-proxy.pdf');

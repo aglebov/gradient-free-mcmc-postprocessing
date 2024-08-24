@@ -64,6 +64,9 @@ logging.getLogger(utils.caching.__name__).setLevel(logging.DEBUG)
 import nest_asyncio
 nest_asyncio.apply()
 
+# %%
+figures_path = Path('../report') / 'figures'
+
 # %% [markdown]
 # Directory where results of expensive calculations will be stored:
 
@@ -151,12 +154,14 @@ y = u + eps
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
-fig.suptitle('Lotka-Volterra solution with added Gaussian noise');
+#fig.suptitle('Lotka-Volterra solution with added Gaussian noise');
 for i in range(2):
     axs[i].plot(t, y[:, i], color='lightgray');
     axs[i].plot(t, u[:, i], color='black');
     axs[i].set_xlabel('t');
     axs[i].set_ylabel(f'$u_{i + 1}(t)$');
+
+fig.savefig(figures_path / 'lotka-volterra.pdf');
 
 # %%
 if save_data:
@@ -869,7 +874,7 @@ def gaussian_range_cap_thin(sample, log_p, thinned_size, range_cap):
 
 
 # %%
-range_cap = 200
+range_cap = 300
 
 
 # %%
@@ -911,8 +916,8 @@ ax.scatter(dists ** 2, prob_diff, s=1);
 x = np.linspace(0, 0.22, 100)
 ax.plot(x, log_q_approx(x), color='orange');
 
-ax.set_xlabel('$\\|x - \\text{argmax}\\, \\log p(x) \\|^2$');
-ax.set_ylabel('$\\log p(x) - \\max \\log p(x)$');
+ax.set_xlabel('$\\|x - x^* \\|^2$');
+ax.set_ylabel('$\\log p(x) - \\log p(x^*)$');
 
 # %% [markdown]
 # We use the function and its gradient as the proxies for gradient-free thinning:
