@@ -80,15 +80,21 @@ sample_size = 1000
 sample = rvs(sample_size, random_state=rng)
 
 # %%
-fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 axs[0].scatter(sample[:, 0], sample[:, 1], alpha=0.3);
-axs[0].set_title('Sample from a multivariate Gaussian mixture');
+axs[0].set_title('(a)');
+axs[0].set_xlabel('$x_1$');
+axs[0].set_ylabel('$x_2$');
 
 xlim = axs[0].get_xlim()
 ylim = axs[0].get_ylim()
 
-plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density', levels=10, fill=False,
+plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, '(b)', levels=10, fill=False,
              colorbar=True, level_labels=False)
+axs[1].set_xlabel('$x_1$');
+axs[1].set_ylabel('$x_2$');
+
+fig.savefig('figures/gaussian-mixture-sample.svg');
 
 # %% [markdown]
 # Verify log-pdf against the JAX implementation:

@@ -10,11 +10,15 @@
 \usepackage{todonotes}
 \usepackage{mathtools}
 \usepackage{algorithm2e}
+\usepackage{graphicx}
+\usepackage{svg}
 
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator{\trace}{trace}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
+
+\graphicspath{ {../code/figures/} }
 
 \parindent=25pt
 \parskip 0.10in
@@ -147,15 +151,15 @@ The last three challenges are typically addressed by post-processing a sample fr
 
 \section{Optimal thinning}
 
-Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation of length $n$, the empirical approximation of the target posterior distribution is given by
+Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation $(x_i)_{i=1}^n$ of length $n$, the empirical approximation of the target posterior distribution is given by
 \begin{equation}
-\frac{1}{n} \sum_{i=1}^n \delta(X_i),
+\frac{1}{n} \sum_{i=1}^n \delta(x_i),
 \label{eq:discrete-distribution}
 \end{equation}
 where $\delta(x)$ is the Dirac delta function.
 \cite{riabizOptimalThinningMCMC2022} set out to identify $m \ll n$ indices $\pi(j) \in \{1,\dots, n\}$ with $j\in\{1, \dots, m\}$, such that the approximation provided by the subset of samples
 \begin{equation}
-\frac{1}{m} \sum_{j=1}^m \delta(X_{\pi(j)})
+\frac{1}{m} \sum_{j=1}^m \delta(x_{\pi(j)})
 \label{eq:thinned-sample}
 \end{equation}
 is closest to the approximation given by the full set, and thus to the target distribution. The criterion of proximity is based on the kernel Stein discrepancy, itself a special case of the integral probability metric.
@@ -277,39 +281,144 @@ To address the limitation of the kernel Stein discrepancy, \cite{fisherGradientF
 \begin{equation}
 \mathcal{S}_{P,Q} g \coloneq \frac{q}{p}(\langle g, \nabla \log q \rangle + \langle \nabla, g \rangle) = \frac{q}{p} \langle q^{-1}\nabla, q g \rangle.
 \end{equation}
-This definition generalises expression~(\ref{eq:stein-operator}) by introducing a proxy distribution $Q$ with density $q$ chosen such that its gradient is easily computable. Note that, again, $q$ is only required to be known up to a normalising constant. When $q = p$, we recover the original Langevin Stein operator~(\ref{eq:stein-operator}).
+This definition generalises expression~(\ref{eq:stein-operator}) by introducing a proxy distribution $Q$ with density $q$ chosen such that its gradient is easily computable. When $q = p$, we recover the original Langevin Stein operator~(\ref{eq:stein-operator}).
 
-\cite{fisherGradientFreeKernelStein2024} proceed to show that, under certain regularity conditions,
+\cite{fisherGradientFreeKernelStein2024} proceed to show in their Proposition 1 that, under certain regularity conditions,
 \begin{equation*}
-\int_\mathcal{X} \mathcal{S}_{P,Q} \diff P = 0,
+\int_\mathcal{X} \mathcal{S}_{P,Q} g \diff P = 0
 \end{equation*}
-and thus define the gradient-free kernel Stein discrepancy
+for any function $g$ whose first derivatives exist and are bounded, allowing them to define the gradient-free kernel Stein discrepancy
 \begin{equation*}
 \mathcal{D}_{P, Q}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{S}_{P,Q} g \diff P' \right|
 \end{equation*}
-in analogy with~(\ref{eq:stein-discrepancy-g}). The set $\mathcal{G}$ is the unit-ball given by~(\ref{eq:unit-ball}). Futhermore, Proposition 7 in \cite{fisherGradientFreeKernelStein2024} establishes that
+by analogy with~(\ref{eq:stein-discrepancy-g}), taking $\mathcal{G}$ again to be the unit-ball~(\ref{eq:unit-ball}). Futhermore, Proposition 7 in \cite{fisherGradientFreeKernelStein2024} establishes that
 \begin{equation*}
 \mathcal{D}_{P, Q}^2(P') = \iint_\mathcal{X} \frac{q(x)}{p(x)} \frac{q(y)}{p(y)} k_Q(x, y) \diff p'(x) \diff p'(y),
 \label{eq:gf-ksd:int}
 \end{equation*}
-where $p'$ is the density of distribution $P'$ and $k_Q(x, y)$ is given by~(\ref{eq:deriv:stein-kernel}) with $q$ replacing $p$. For a discrete $P'$, we obtain
+where $p'$ is the density of distribution $P'$ and $k_Q(x, y)$ is given by~(\ref{eq:deriv:stein-kernel}) but with $q$ replacing $p$. For a discrete $P'$, this translates to
 \begin{equation}
 \mathcal{D}_{P, Q}^2\left(\frac{1}{n} \sum_{i=1}^n \delta(x_i)\right) = \frac{1}{n^2} \sum_{i,j=1}^n \frac{q(x_i)}{p(x_i)} \frac{q(x_j)}{p(x_j)} k_Q(x_i, x_j).
 \label{eq:gf-ksd:discrete}
 \end{equation}
 
-Both~(\ref{eq:ksd:discrete}) and~(\ref{eq:gf-ksd:discrete}) can be viewed as averaging the elements of matrices, and this fact can be used to provide an efficient implementation of the greedy search described in Section~\ref{sec:stein-thinning}.
+Both expression~(\ref{eq:ksd:discrete}) and~(\ref{eq:gf-ksd:discrete}) can be viewed as averaging the elements of matrices, and this fact is used to provide an efficient implementation of the greedy search described in Section~\ref{sec:stein-thinning}.
 
-\chapter{Methodology}
+When $k_Q(x,y)$ is based on IMQ with $\Gamma = I$, Theorem 2 in \cite{fisherGradientFreeKernelStein2024} proves that $\mathcal{D}_{P, Q}^2(P_m') \to 0$ implies that the sequence of distributions $P'_m$ converges weakly to $P$ as $m \to \infty$, thus ensuring convergence control. 
 
-\section{Data}
+While removing the need to calculate the gradient of log-target, the approach by \cite{fisherGradientFreeKernelStein2024} replaces it with the requirement to choose a suitable proxy distribution $Q$. The authors provide several examples:
+\begin{itemize}
+\item where the target distribution is the posterior in a Bayesian inference problem, the prior distribution can serve as $Q$,
+\item where $p$ can be differentiated, the Laplace approximation of $P$ could be used,
+\item where samples from $P$ are available, it can be approximated by either the Gaussian mixture model (GMM) or a kernel density estimator (KDE).
+\end{itemize}
+
+The choice of a proxy is non-trivial, however, and \cite{fisherGradientFreeKernelStein2024} warn of a possible failure of convergence control when the proxy density $q$ has either a substantially heavier or a substantially lighter tail than $p$. Two other situations are identified by the authors as detrimental to their approach: high dimension of the domain $\mathcal{X}$ and well separated high-probability regions.
+
+Two applications of gradient-free KSD are considered by \cite{fisherGradientFreeKernelStein2024}: importance resampling and variational inference. In this dissertation, we adopt their approach for the thinning problem.
+
+\chapter{Methodology and Data}
+
+We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$. With inverse multiquadratic kernel~(\ref{eq:imq}), this results in the expression
+\begin{equation}
+\begin{aligned}
+k_{P,Q}(x, y)
+= &\frac{q(x)}{p(x)} \frac{q(y)}{p(y)} \times \\
+ &\left[ -4 \frac{\beta(\beta-1) \| \Gamma^{-1}(x - y)\|^2}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta-2}} \right.  \\
+&- 2 \beta \frac{\trace(\Gamma^{-1}) + \langle \Gamma^{-1} (x - y), \nabla_x \log q(x) - \nabla_y \log q(y)\rangle}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta-1}} \\
+& \left. + \frac{\langle \nabla_x \log q(x), \nabla_y \log q(y) \rangle}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta}} \right]. \\
+\end{aligned}
+\label{eq:k_Q}
+\end{equation}
+
+We aim to compare the performance of the proposed algorithm against na\"ive thinning (retaining each $i$-th element of the sample) and the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for several target distributions. The outline of the evaluation procedure for each test case is as follows:
+\begin{enumerate}
+\item obtain a sample from the target distribution,
+\item apply na\"ive thinning, Stein thinning and the proposed algorithm to get a thinned sample of a given cardinality,
+\item calculate the energy distance between the thinned sample and the target distribution and compare the values between the algorithms.
+\end{enumerate}
+
+\section{Test Cases}
+\label{sec:methodology:data}
+
+We use synthetic data in order to have control over the ground truth in our experiments.
+
+\subsection{Bivariate Gaussian mixture}
+
+The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm in a simple setting. Here we take the target distribution to be the bivariate Gaussian mixture with means 
+$$
+\mu_1 = \begin{pmatrix} -1 \\ -1 \end{pmatrix}, \qquad
+\mu_2 = \begin{pmatrix} 1 \\ 1 \end{pmatrix},
+$$
+covariance matrices
+$$
+\Sigma_1 = \begin{pmatrix}
+0.5 & 0.25\\
+0.25 & 1
+\end{pmatrix}, \qquad
+\Sigma_2 = \begin{pmatrix}
+2 & -0.8 \sqrt{3}\\
+-0.8 \sqrt{3} & 1.5
+\end{pmatrix}
+$$
+and weights
+$$w = \begin{pmatrix} 0.3 \\ 0.7 \end{pmatrix}.$$
+
+We obtain 1000 samples by directly drawing from the target. A scatter plot of the sample as well as the contour plot of the probability density are shown in Figure~\ref{fig:gmm:sample}.
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includesvg[width=1.0\textwidth]{gaussian-mixture-sample}
+}
+\caption{(a) Sample from the bivariate Gaussian mixture with two components and (b) its probability density function.
+\label{fig:gmm:sample}}
+\end{figure}
+
+\subsection{Lotka-Volterra inverse problem}
+
+The Lotka-Volterra model describes the evolution of an idealised ecosystem with two species: predator and prey. The predator population grows when prey is abundant, and the prey population shrinks when there are too many predators. Denoting the size of prey population by $u_1$, and the predator population by $u_2$, the model postulates the following dynamic:
+%\begin{equation}
+%\begin{alignat*}{4}
+%\frac{\diff u_1}{u_1} & = ( &  \theta_1 & & - \theta_2 u_2 & ) & & \diff t \\
+%\frac{\diff u_2}{u_2} & = ( & -\theta_3 & & + \theta_4 u_1 & ) & & \diff t \\
+%\end{alignat*}
+%\end{equation}
+\begin{equation}
+\begin{aligned}
+\frac{\diff u_1}{u_1} & = ( \;\;\;\theta_1 - \theta_2 u_2 ) \diff t \\
+\frac{\diff u_2}{u_2} & = ( -\theta_3 + \theta_4 u_1 ) \diff t \\
+\end{aligned}
+\label{eq:lotka-volterra}
+\end{equation}
+The resulting behaviour is driven by the four parameters $\theta_1, \dots, \theta_4$.
+
+If a realisation of $u_1(t)$ and $u_2(t)$ is observed for an interval $[t_1, t_2]$, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model for a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
+
+We take $u_1(t)$ and $u_2(t)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $(0.67, 1.33, 1, 1)$ and initial values $u_1(0) = 1$, $u_2(0) = 1$. The interval $[0, 25]$ is discretised into $2400$ points. Gaussian noise with mean 0 and standard deviation 0.2 is then added to all data points $u_1(t)$ and $u_2(t)$. For comparability of results, we use the same values as those used by \cite{riabizOptimalThinningMCMC2022}. Figure~\ref{fig:lotka-volterra:data} displays the resulting dataset.
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includesvg[width=1.0\textwidth]{lotka-volterra}
+}
+\caption{Solution to the Lotka-Volterra ODEs (black) with added Gaussian noise (grey).
+\label{fig:lotka-volterra:data}}
+\end{figure}
+
 
 \section{Evaluating the approximation}
+\label{sec:methodology:evaluation}
 
 In order to assess how well the selected sample approximates the posterior distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
 $$D^2(F, G) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
 where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
-$$\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.$$
+\begin{equation}
+\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.
+\label{eq:energy-distance:discrete}
+\end{equation}
+
+\todo[inline]{Advantages: objective and easy to calculate.}
 
 \chapter{Results}
 

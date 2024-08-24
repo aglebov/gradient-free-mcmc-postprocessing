@@ -10,6 +10,7 @@ report/build/*.toc
 report/build/*.bcf
 report/build/*.out
 report/build/*.run.xml
+report/svg-inkscape
 
 code/.venv
 code/build
