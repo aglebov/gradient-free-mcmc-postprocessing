@@ -1,4 +1,4 @@
-\documentclass[12pt,a4paper]{report}
+\documentclass[11pt,a4paper]{report}
 \usepackage{graphicx,epsfig}
 \usepackage{amsfonts}
 \usepackage{amsthm, amsmath}
@@ -13,6 +13,9 @@
 \usepackage{graphicx}
 \usepackage{svg}
 
+\usepackage{geometry}
+\geometry{margin=2cm}
+
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator{\trace}{trace}
 \DeclareMathOperator*{\argmax}{arg\,max}
@@ -25,10 +28,13 @@
 
 \date{}
 \begin{document}
+\newgeometry{margin=4cm}
+
 \thispagestyle{empty}
 \begin{center}
 {\huge
-Gradient-Free Optimal Postprocessing of MCMC Output
+Gradient-Free Optimal Postprocessing \\
+of MCMC Output
 
 \bigskip
 \bigskip
@@ -57,6 +63,7 @@ United Kingdom\\
 
 \newpage
 \setcounter{page}{1}
+\restoregeometry
 
 \chapter*{Abstract}
 
@@ -313,9 +320,9 @@ While removing the need to calculate the gradient of log-target, the approach by
 \item where samples from $P$ are available, it can be approximated by either the Gaussian mixture model (GMM) or a kernel density estimator (KDE).
 \end{itemize}
 
-The choice of a proxy is non-trivial, however, and \cite{fisherGradientFreeKernelStein2024} warn of a possible failure of convergence control when the proxy density $q$ has either a substantially heavier or a substantially lighter tail than $p$. Two other situations are identified by the authors as detrimental to their approach: high dimension of the domain $\mathcal{X}$ and well separated high-probability regions.
+The choice of a proxy is non-trivial, and \cite{fisherGradientFreeKernelStein2024} warn of possible failure of convergence control when the proxy density $q$ has either a substantially heavier or a substantially lighter tail than $p$. Two other situations are identified by the authors as detrimental to their approach: high dimension of the domain $\mathcal{X}$ and well separated high-probability regions.
 
-Two applications of gradient-free KSD are considered by \cite{fisherGradientFreeKernelStein2024}: importance resampling and variational inference. In this dissertation, we adopt their approach for the thinning problem.
+In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD for importance resampling and variational inference problems. In this dissertation, we adopt their approach for the thinning problem.
 
 \chapter{Methodology and Data}
 
@@ -335,7 +342,7 @@ We aim to compare the performance of the proposed algorithm against na\"ive thin
 \begin{enumerate}
 \item obtain a sample from the target distribution,
 \item apply na\"ive thinning, Stein thinning and the proposed algorithm to get a thinned sample of a given cardinality,
-\item calculate the energy distance between the thinned sample and the target distribution and compare the values between the algorithms.
+\item calculate the energy distance between the thinned sample and the target distribution and compare the values across the algorithms.
 \end{enumerate}
 
 \section{Test Cases}
@@ -345,7 +352,7 @@ We use synthetic data in order to have control over the ground truth in our expe
 
 \subsection{Bivariate Gaussian mixture}
 
-The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm in a simple setting. Here we take the target distribution to be the bivariate Gaussian mixture with means 
+The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm under favourable conditions. Here we take the target distribution to be the bivariate Gaussian mixture with means 
 $$
 \mu_1 = \begin{pmatrix} -1 \\ -1 \end{pmatrix}, \qquad
 \mu_2 = \begin{pmatrix} 1 \\ 1 \end{pmatrix},
@@ -362,9 +369,8 @@ $$
 \end{pmatrix}
 $$
 and weights
-$$w = \begin{pmatrix} 0.3 \\ 0.7 \end{pmatrix}.$$
-
-We obtain 1000 samples by directly drawing from the target. A scatter plot of the sample as well as the contour plot of the probability density are shown in Figure~\ref{fig:gmm:sample}.
+$$w = \begin{pmatrix} 0.3 \\ 0.7 \end{pmatrix},$$
+and obtain 1000 samples by directly drawing from the target. A scatter plot of the sample as well as the contour plot of the probability density are shown in Figure~\ref{fig:gmm:sample}.
 
 \begin{figure}[h]
 \centering
