@@ -12,14 +12,18 @@
 \usepackage{algorithm2e}
 \usepackage{graphicx}
 \usepackage{svg}
+\usepackage{tabularx}
 
 \usepackage{geometry}
 \geometry{margin=2cm}
 
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator{\trace}{trace}
+\DeclareMathOperator{\diag}{diag}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
+
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
 
 \graphicspath{ {./figures/} }
 
@@ -327,7 +331,7 @@ In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD
 \chapter{Methodology and Results}
 
 We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$. With inverse multiquadratic kernel~(\ref{eq:imq}), this results in the expression
-\begin{equation}
+\begin{equation*}
 \begin{aligned}
 k_{P,Q}(x, y)
 = &\frac{q(x)}{p(x)} \frac{q(y)}{p(y)} \times \\
@@ -336,7 +340,7 @@ k_{P,Q}(x, y)
 & \left. + \frac{\langle \nabla_x \log q(x), \nabla_y \log q(y) \rangle}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta}} \right]. \\
 \end{aligned}
 \label{eq:k_Q}
-\end{equation}
+\end{equation*}
 
 We aim to compare the performance of the proposed algorithm against na\"ive thinning (retaining each $i$-th element of the sample) and the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for several target distributions. The outline of the evaluation procedure for each test case is as follows:
 \begin{enumerate}
@@ -348,10 +352,10 @@ We aim to compare the performance of the proposed algorithm against na\"ive thin
 In order to assess how well the selected sample approximates the posterior distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
 $$D^2(F, G) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
 where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
-\begin{equation}
+\begin{equation*}
 \mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.
 \label{eq:energy-distance:discrete}
-\end{equation}
+\end{equation*}
 
 \todo[inline]{Advantages: objective and easy to calculate.}
 
@@ -443,6 +447,8 @@ We conclude that even in such a favourable setup, the performance of the gradien
 
 A more challenging case is presented by the inverse problem of parameter inference for the Lotka-Volterra model.
 
+\todo[inline]{Cite sources on inverse Bayesian problems.}
+
 The Lotka-Volterra model describes the evolution of an idealised ecosystem with two species: predator and prey. The predator population grows when prey is abundant, and the prey population shrinks when there are too many predators. Denoting the size of prey population by $u_1$, and the predator population by $u_2$, the model postulates the following dynamic:
 %\begin{equation}
 %\begin{alignat*}{4}
@@ -457,11 +463,11 @@ The Lotka-Volterra model describes the evolution of an idealised ecosystem with 
 \end{aligned}
 \label{eq:lotka-volterra}
 \end{equation}
-The resulting behaviour is driven by the four parameters $\theta_1, \dots, \theta_4$.
+The resulting behaviour is driven by the four parameters $\theta_1, \dots, \theta_4$. It is convenient to denote the solution to this system as  $\mathbf{u}(t;\pmb{\theta}) = (u_1(t; \pmb{\theta}), u_2(t; \pmb{\theta}))^T$, where $\pmb{\theta}$ is the vector of parameter values $(\theta_1, \dots, \theta_4)^T$.
 
-If a realisation of $u_1(t)$ and $u_2(t)$ is observed for an interval $[t_1, t_2]$, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model for a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
+If a realisation of $\mathbf{u}(t; \pmb{\theta})$ is observed for an interval $t \in [0, T]$ with $\pmb{\theta}$ unknown, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model for a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
 
-We take $u_1(t)$ and $u_2(t)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $(0.67, 1.33, 1, 1)$ and initial values $u_1(0) = 1$, $u_2(0) = 1$. The interval $[0, 25]$ is discretised into $2400$ points. Gaussian noise with mean 0 and standard deviation 0.2 is then added to all data points $u_1(t)$ and $u_2(t)$. For comparability of results, we use the same values as those used by \cite{riabizOptimalThinningMCMC2022}. Figure~\ref{fig:lotka-volterra:data} displays the resulting dataset.
+We take $\mathbf{u}(t;\pmb{\theta}^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\pmb{\theta}^* = (0.67, 1.33, 1, 1)^T$ and initial value $\mathbf{u}(0; \pmb{\theta}^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / 2400$ for $i \in \{0, 2400\}$. Bivariate i.i.d.\ Gaussian noise $\pmb{\varepsilon}(t) \sim \mathcal{N}\left( \mathbf{0}, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $\mathbf{y}(t) = \mathbf{u}(t;\pmb{\theta}^*) + \pmb{\varepsilon}(t)$ as our observed data. Figure~\ref{fig:lotka-volterra:data} displays the values $\mathbf{y}(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
 
 \begin{figure}[h]
 \centering
@@ -472,9 +478,95 @@ We take $u_1(t)$ and $u_2(t)$ to be generated for $t \in [0, 25]$ by the model~(
 \label{fig:lotka-volterra:data}}
 \end{figure}
 
+Inference is then performed by means of a random-walk Metropolis-Hastings algorithm. Note that the likelihood is not available in an explicit form in this case, but is instead determined by the deviation of the solution $\mathbf{u}(t;\pmb{\theta})$ from $\mathbf{y}(t)$ for each $\pmb{\theta}$. Specifically, we take
+\begin{equation}
+\mathcal{L}(\pmb{\theta}) = \prod_{i=1}^N \phi_i(\mathbf{u}(t_i; \pmb{\theta})),
+\label{eq:lotka-volterra:likelihood}
+\end{equation}
+where 
+\begin{equation}
+\phi_i(\mathbf{u}(t_i;\pmb{\theta})) \propto \exp\left( -\frac{1}{2} (\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta}))^T C^{-1} (\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta})) \right)
+\label{eq:lotka-volterra:error-distr}
+\end{equation}
+with $C = \diag(0.2^2, 0.2^2)$. We also choose the normal prior for $\pmb{\theta}$:
+\begin{equation}
+\pi(\pmb{\theta}) \propto \exp \left(-\frac{1}{2} \pmb{\theta}^T \pmb{\theta} \right).
+\label{eq:lotka-volterra:prior}
+\end{equation}
+By the Bayes theorem, the posterior is then
+\begin{equation}
+p(\pmb{\theta}) \propto \mathcal{L}(\pmb{\theta}) \pi(\pmb{\theta}).
+\label{eq:lotka-volterra:posterior}
+\end{equation}
+We follow \cite{riabizOptimalThinningMCMC2022} in selecting the starting values for the chains (Table~\ref{table:lotka-volterra:starting_values}).
+
+\begin{table}[h!]
+\centering
+\begin{tabularx}{0.5\textwidth}{c Y Y Y Y} 
+ \hline
+ Chain & $\theta_1$ & $\theta_2$ & $\theta_3$ & $\theta_4$ \\
+ \hline
+ 1 & 0.55 & 1    & 0.8 & 0.8 \\ 
+ 2 & 1.5  & 1    & 0.8 & 0.8 \\
+ 3 & 1.3  & 1.33 & 0.5 & 0.8 \\
+ 4 & 0.55 & 3    & 3.  & 0.8 \\
+ 5 & 0.55 & 1    & 1.5 & 1.5 \\
+ \hline
+\end{tabularx}
+\caption{Starting values for the random-walk Metropolis-Hastings algorithm in the Lotka-Volterra inference problem.}
+\label{table:lotka-volterra:starting_values}
+\end{table}
+
+Since the parameters of the Lotka-Volterra model are non-negative, we run inference in the log-space. The trace plots from running 500,000 iterations of the random-walk Metropolis-Hastings algorithm for each chain are shown in Figure~\ref{fig:lotka-volterra:trace-plots}. Figure~\ref{fig:lotka-volterra:chain-paths} confirms that all chains reach the high-probability region, albeit after considerable burn-in. Having obtained samples from the posterior distribution, we proceed to thin them.
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{lotka-volterra-chain-paths.png}
+}
+\caption{Chain paths from the random-walk Metropolis-Hastings algorithm for the Lotka-Volterra inference problem.
+\label{fig:lotka-volterra:chain-paths}}
+\end{figure}
+
+\paragraph{Na\"ive thinning.} We select elements of the sample with uniformly spaced indices. The results are shown in Figure~\ref{fig:lotka-volterra:naive:results} in the Appendix.
+
+\paragraph{Stein thinning.} In order to use this approach, we need the gradients of the log-posterior. From~(\ref{eq:lotka-volterra:posterior}), we have
+\begin{equation*}
+\nabla_{\pmb{\theta}} \log p(\pmb{\theta}) = \nabla_{\pmb{\theta}} \log \mathcal{L}(\pmb{\theta}) + \nabla_{\pmb{\theta}} \pi(\pmb{\theta}).
+\end{equation*}
+Equation~(\ref{eq:lotka-volterra:likelihood}) yields
+\begin{equation*}
+\frac{\partial}{\partial \theta_s} \log \mathcal{L}(\pmb{\theta}) 
+= \sum_{i=1}^N \frac{\partial}{\partial \theta_s} \log \phi_i(\mathbf{u}(t_i; \pmb{\theta}))
+= \sum_{i=1}^N \sum_{r=1}^q \frac{\partial}{\partial u_r} (\log \phi_i) \frac{\partial u_r}{\partial \theta_s},
+\end{equation*}
+where $q = 2$ is the dimension of the vector $\mathbf{u}(t)$ and $s \in \{1, \dots, 4\}$. This can be written in the matrix form as
+\begin{equation*}
+(\nabla_{\pmb{\theta}} \log \mathcal{L})(\pmb{\theta}) = \sum_{i=1}^N (J(t_i))^T (\nabla_{\mathbf{u}} \log \phi_i)(\mathbf{u}(t_i; \pmb{\theta})),
+\end{equation*}
+where the elements of the Jacobian matrix are given by
+\begin{equation*}
+J_{r,s} \coloneq \frac{\partial u_r}{\partial \theta_s}.
+\end{equation*}
+The gradient
+\begin{equation*}
+(\nabla_\mathbf{u} \log \phi_i)(\mathbf{u}(t_i; \pmb{\theta})) = C^{-1}(\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta}))
+\end{equation*}
+is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obtain the sensitivities $\frac{\partial u_r}{\partial \theta_s}$, we augment the system~(\ref{eq:lotka-volterra}) with additional forward sensitivity equations and solve it numerically. The derivation of the sensitivity equations can be found in Appendix~\ref{appendix:derivations:forward-sensitivity}. Alternatively, the sensitivities can be obtained by numerical differentiation, for example using the Python library \texttt{JAX}\footnote{https://jax.readthedocs.io}. Since the gradient is calculated independently for each element of the sample, the calculations can easily be parallelised.
+
+The gradient of the log-prior is obtained immediately from~(\ref{eq:lotka-volterra:prior}):
+\begin{equation*}
+\nabla_{\pmb{\theta}} \log \pi(\pmb{\theta}) = -\pmb{\theta}.
+\end{equation*}
+
+The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volterra:stein:results} in the Appendix.
+
 
 \chapter{Conclusions}
 \label{sec:conclusions}
+
+\bibliographystyle{plainnat_modified}
+\bibliography{biblio}
 
 \appendix
 \chapter{Derivations}
@@ -489,8 +581,8 @@ Given a kernel $k(x,y)$, the corresponding Stein kernel is given by~(\ref{eq:der
 \frac{\partial}{\partial x_r} k(x,y) 
 %&= \beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \\
 %&\times \left( \sum_{j=1}^d \Gamma^{-1}_{lj}(x_j - y_j) + \sum_{i=1}^d (x_i - x_j) \Gamma^{-1}_{il} \right) \\
-&= \beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \\
-&\times \sum_{j=1}^d (\Gamma^{-1} + \Gamma^{-T})_{rj}(x_j - y_j) \\
+&= \beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1}
+\sum_{j=1}^d (\Gamma^{-1} + \Gamma^{-T})_{rj}(x_j - y_j) \\
 &= 2 \beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1}
 \sum_{j=1}^d \Gamma^{-1}_{rj}(x_j - y_j), \\
 \end{aligned}
@@ -509,8 +601,7 @@ Now
 \begin{equation}
 \begin{aligned}
 \frac{\partial^2}{\partial x_r\,\partial y_r} k(x,y) 
-&= -4 \beta(\beta-1) \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-2} \\
-&\times \left(\sum_{j=1}^d \Gamma^{-1}_{rj}(x_j - y_j)\right)^2 \\
+= &-4 \beta(\beta-1) \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-2} \left(\sum_{j=1}^d \Gamma^{-1}_{rj}(x_j - y_j)\right)^2 \\
 &- 2\beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \Gamma^{-1}_{rr}
 \end{aligned}
 \end{equation}
@@ -541,8 +632,62 @@ k_P(x, y)
 \end{equation}
 where we have denoted $D = c^2 + \| \Gamma^{-1/2}(x-y)\|^2$.
 
+\section{Forward sensitivity equations for the Lotka-Volterra model}
+\label{appendix:derivations:forward-sensitivity}
 
-\bibliographystyle{plainnat_modified}
-\bibliography{biblio}
+Given a system of ODEs of the form:
+$$\frac{\diff u_r}{\diff t} = F_r(t, u_1, \dots, u_q; \theta_1, \dots, \theta_d),\qquad r=1,\dots,q,$$
+where $q$ is the dimension of the state space (i.e.\ the number of observed variables) and $d$ is the dimension of the parameter space,
+the sensitivities can be found by solving forward sensitivity equations:
+$$\frac{\diff}{\diff t}\left(\frac{\partial u_r}{\partial \theta_s}\right)
+= \frac{\partial}{\partial \theta_s}\frac{\diff u_r}{\diff t} 
+%= \frac{\diff F_r}{\diff \theta_s} 
+= \frac{\partial F_r}{\partial \theta_s} + \sum_{l=1}^q \frac{\partial F_r}{\partial u_l} \frac{\partial u_l}{\partial \theta_s}.$$
+
+\todo[inline]{Double-check the notation above.}
+
+For the Lotka-Volterra model~(\ref{eq:lotka-volterra}), this yields eight additional equations:
+\begin{equation*}
+\begin{aligned}
+\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_1}\right) &= u_1 + (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_1} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_1}, \\
+\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_2}\right) &= - u_1 u_2 + (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_2} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_2}, \\
+\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_3}\right) &= (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_3} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_3}, \\
+\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_4}\right) &= (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_4} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_4}, \\
+\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_1}\right) &= \theta_4 u_2 \frac{\partial u_1}{\partial \theta_1} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_1}, \\
+\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_2}\right) &= \theta_4 u_2 \frac{\partial u_1}{\partial \theta_2} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_2}, \\
+\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_3}\right) &= -u_2 + \theta_4 u_2 \frac{\partial u_1}{\partial \theta_3} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_3}, \\
+\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_4}\right) &= u_1 u_2 + \theta_4 u_2 \frac{\partial u_1}{\partial \theta_4} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_4}. \\
+\end{aligned}
+\end{equation*}
+
+\chapter{Additional figures}
+\label{appendix:figures}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{lotka-volterra-trace-plots.pdf}
+}
+\caption{Trace plots from the random-walk Metropolis-Hastings algorithm for the Lotka-Volterra inference problem.
+\label{fig:lotka-volterra:trace-plots}}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=.6\textwidth]{lotka-volterra-naive-thinning.png}
+}
+\caption{Results of na\"ive thinning of the sample from the Lotka-Volterra model.
+\label{fig:lotka-volterra:naive:results}}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=.6\textwidth]{lotka-volterra-stein-thinning.png}
+}
+\caption{Results of Stein thinning of the sample from the Lotka-Volterra model.
+\label{fig:lotka-volterra:stein:results}}
+\end{figure}
 
 \end{document}

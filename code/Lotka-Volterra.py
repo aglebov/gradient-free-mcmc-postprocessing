@@ -227,14 +227,22 @@ rw_samples[0];
 
 # %%
 titles = [f'$\\theta^{{(0)}} = ({theta[0]}, {theta[1]}, {theta[2]}, {theta[3]})$' for theta in theta_inits]
-var_labels = [f'$\\theta_{i + 1}$' for i in range(len(theta_inits))]
+var_labels = [f'$\\log \\theta_{i + 1}$' for i in range(len(theta_inits))]
 fig = plot_traces(rw_samples, titles=titles, var_labels=var_labels);
 fig.suptitle('Traces from the random-walk Metropolis-Hasting algorithm');
 
+# %% [markdown]
+# Produce a figure for the report:
+
 # %%
-fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-plot_paths(rw_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\theta_1$', label2='$\\theta_2$');
-plot_paths(rw_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\theta_3$', label2='$\\theta_4$');
+fig = plot_traces(rw_samples, titles=[f'Chain {i + 1}' for i in range(len(rw_samples))], var_labels=var_labels);
+fig.savefig(figures_path / 'lotka-volterra-trace-plots.pdf');
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+plot_paths(rw_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\log \\theta_1$', label2='$\\log \\theta_2$');
+plot_paths(rw_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\log \\theta_3$', label2='$\\log \\theta_4$');
+fig.savefig(figures_path / 'lotka-volterra-chain-paths.png', dpi=600);
 fig.suptitle('Traversal paths from the random-walk Metropolis-Hastings algorithm');
 
 
@@ -733,6 +741,7 @@ def rw_thinned_idx(i: int) -> np.ndarray:
 
 # %%
 fig = plot_sample_thinned(rw_samples, rw_thinned_idx, titles, var_labels);
+fig.savefig(figures_path / 'lotka-volterra-stein-thinning.png', dpi=300);
 fig.suptitle('Results of applying Stein thinning to samples from the random-walk Metropolis-Hastings algorithm');
 
 
@@ -771,6 +780,7 @@ def rw_naive_idx(i: int) -> np.ndarray:
 
 # %%
 fig = plot_sample_thinned(rw_samples, rw_naive_idx, titles, var_labels);
+fig.savefig(figures_path / 'lotka-volterra-naive-thinning.png', dpi=300);
 fig.suptitle('Results of applying naive thinning to samples from the random-walk Metropolis-Hastings algorithm');
 
 
