@@ -93,8 +93,6 @@ The need to sample from a probability distribution arises in exploratory analysi
 
 \todo[inline]{Describe alternatives: the inverse method, accept-reject and importance sampling}
 
-\todo[inline]{Include a simple motivating example}
-
 An MCMC algorithm proceeds by sequentially constructing a chain of samples\footnote{These are also sometimes called ``draws''. In this report, we follow the literature in using the term ``sample'' both for a single element in an MCMC chain and for all such elements taken together as a sample from the target distribution.} $x_1$, $x_2$, $\dots$,  where each sample is drawn from a transition distribution $Q$ conditional on the preceding value:
 $$x_{n+1} \sim Q(x_{n+1}|x_n).$$
 The distribution $Q$ is known as the transition kernel and is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $\Pi$:
@@ -131,6 +129,8 @@ Note that the newly sampled values $x_{n+1}^{(I_1, \dots, I_{i-1})}$ enter the c
 \todo[inline]{Consider simplifying this description}
 
 \todo[inline]{Mention HMC and other recent variations}
+
+Development of general-purpose and specialised MCMC algorithms remains an active area of research.
 
 \section{Challenges of running MCMC}
 
@@ -384,7 +384,7 @@ and obtain 1000 samples by directly drawing from the target. A scatter plot of t
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{gaussian-mixture-sample.pdf}
 }
-\caption{(a) Sample from the bivariate Gaussian mixture with two components and (b) its probability density function.
+\caption{A sample from the bivariate Gaussian mixture with two components and its probability density function.
 \label{fig:gmm:sample}}
 \end{figure}
 
@@ -397,7 +397,7 @@ $$f(x) = \sum_{i=1}^k w_i f_i(x),$$
 thus the gradient of the log-density is obtained as
 $$\nabla \log f(x) = \frac{\sum_{i=1}^k w_i \nabla f_i(x)}{\sum_{i=1}^k w_i f_i(x)} = -\frac{\sum_{i=1}^k w_i f_i(x) \Sigma_i^{-1}(x - \mu_i)}{\sum_{i=1}^k w_i f_i(x)}.$$
 
-\paragraph{Gradient-free Stein thinning.} This approach requires us to select a proxy distribution. We consider several options, informed by the discussion in \cite{fisherGradientFreeKernelStein2024}:
+\paragraph{Gradient-free Stein thinning.} This approach requires us to select a proxy distribution. We consider several options:
 \begin{itemize}
 \item a bivariate Gaussian with the mean and covariance matrix matching the sample mean and covariance of the sample,
 \item a Laplace approximation of the target distribution,
@@ -415,14 +415,14 @@ The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplac
 \label{fig:gmm:thinned}}
 \end{figure}
 
-To see why the Laplace approximation fails in this case, note the multiplier $q(x) / p(x)$ in~(\ref{eq:gf-ksd:discrete}). Since the thinning algorithm seeks to minimise the sum, it will tend to prefer elements with low values of $q(x) / p(x)$. In Figure~\ref{fig:gmm:laplace-failure}, we plot the values $\log q(x) - \log p(x) = \log (q(x) / p(x))$ for points in the sample. It is clear that the points in the lower left corner of the plot become very attractive for the algorithm to select due to their miniscule values of the multiplier $q(x) / p(x)$. The low ratio $q(x) / p(x)$ for those points is in turn due to the fact that the Laplace approximation picks the larger of the two modes in the mixture, so it cannot serve as a good proxy for the samples coming from the other component. By contract, the simple Gaussian proxy using the sample mean and covariance achieves more uniform values of the multiplier.
+To see why the Laplace approximation fails in this case, note the multiplier $q(x) / p(x)$ in~(\ref{eq:gf-ksd:discrete}). Since the thinning algorithm seeks to minimise the sum, it will tend to prefer elements with low values of $q(x) / p(x)$. In Figure~\ref{fig:gmm:laplace-failure}, we plot the values $\log q(x) - \log p(x) = \log (q(x) / p(x))$ for points in the sample. It is clear that the points in the lower left corner of the plot become very attractive for the algorithm to select due to their miniscule values of the multiplier $q(x) / p(x)$. The low ratio $q(x) / p(x)$ for those points is in turn due to the fact that the Laplace approximation picks the larger of the two modes in the mixture, so it cannot serve as a good proxy for the samples coming from the other component. By contract, the simple Gaussian proxy achieves more uniform values of the multiplier.
 
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{gaussian-mixture-laplace-proxy.pdf}
 }
-\caption{The values of $\log q(x) - \log p(x)$ for the points in the Gaussian mixture sample under the Laplace proxy and the simple Gaussian proxy.
+\caption{The values of $\log q(x) - \log p(x)$ for the points in the Gaussian mixture sample under the Laplace proxy and the simple Gaussian proxy using the sample mean and covariance.
 \label{fig:gmm:laplace-failure}}
 \end{figure}
 
@@ -440,6 +440,8 @@ Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved b
 We conclude that even in such a favourable setup, the performance of the gradient-free algorithm depends crucially on the choice of the proxy distribution.
 
 \section{Lotka-Volterra inverse problem}
+
+A more challenging case is presented by the inverse problem of parameter inference for the Lotka-Volterra model.
 
 The Lotka-Volterra model describes the evolution of an idealised ecosystem with two species: predator and prey. The predator population grows when prey is abundant, and the prey population shrinks when there are too many predators. Denoting the size of prey population by $u_1$, and the predator population by $u_2$, the model postulates the following dynamic:
 %\begin{equation}
@@ -472,6 +474,7 @@ We take $u_1(t)$ and $u_2(t)$ to be generated for $t \in [0, 25]$ by the model~(
 
 
 \chapter{Conclusions}
+\label{sec:conclusions}
 
 \appendix
 \chapter{Derivations}
