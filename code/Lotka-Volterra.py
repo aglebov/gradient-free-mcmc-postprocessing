@@ -37,13 +37,11 @@ import arviz as az
 
 import stan
 
-from jax import grad, hessian, jacobian
+from jax import jacobian
 from jax.experimental.ode import odeint
 import jax.numpy as jnp
-from jax.scipy.stats import gaussian_kde as jgaussian_kde
 
-import dask.array as da
-from dask.distributed import Client, progress
+from dask.distributed import Client
 
 import dcor
 
@@ -52,9 +50,8 @@ from stein_thinning.thinning import thin, thin_gf
 from mcmc import sample_chain, metropolis_random_walk_step, rw_proposal_sampler
 import utils.caching
 from utils.caching import cached, cached_batch, subscriptable
-from utils.mvn import make_mvn_mixture
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
-from utils.plotting import highlight_points, plot_density, plot_paths, plot_sample_thinned, plot_traces
+from utils.plotting import highlight_points, plot_paths, plot_sample_thinned, plot_traces
 from utils.sampling import to_arviz
 
 # %%
@@ -704,7 +701,7 @@ def parallelise_for_unique(func, sample, row_chunk_size=200):
 # Calculate the gradients for the random-walk samples:
 
 # %%
-@subscriptable
+@subscriptable(n=len(theta_inits))
 @cached(recalculate=recalculate, persist=True)
 def rw_grads(i: int) -> np.ndarray:
     return parallelise_for_unique(grad_log_posterior, np.exp(rw_samples[i]))
@@ -714,34 +711,48 @@ def rw_grads(i: int) -> np.ndarray:
 # Calculate the gradients for HMC samples:
 
 # %%
-@subscriptable
+@subscriptable(n=len(theta_inits))
 @cached(recalculate=recalculate, persist=True)
 def hmc_grads(i: int) -> np.ndarray:
     return parallelise_for_unique(grad_log_posterior, np.exp(hmc_samples[i]))
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Apply Stein thinning
 
 # %% [markdown]
 # ### Random-walk sample
 
 # %%
+n_points_calculate = 1000
 n_points_thinned = 20
+n_points_display = 20
 
 
 # %%
-@subscriptable
-@cached(recalculate=recalculate, persist=True)
-def rw_thinned_idx(i: int) -> np.ndarray:
-    return thin(np.exp(rw_samples[i]), rw_grads[i], n_points_thinned, preconditioner='med')
+@subscriptable(n=len(theta_inits))
+@cached_batch(item_type=np.ndarray, recalculate=recalculate, persist=True)
+def rw_thinned_idx() -> list[np.ndarray]:
+    # we have to instantiate the array here as the caching function currently cannot be serialised
+    samples = list(rw_samples)
+    gradients = list(rw_grads)
+    def calculate(i):
+        return thin(np.exp(samples[i]), gradients[i], n_points_calculate, preconditioner='med')
+    return map_parallel(calculate, range(len(theta_inits)))
 
+
+# %% [markdown]
+# Force recalculation when necessary:
+
+# %%
+# %%time
+#rw_thinned_idx.recalculate(persist=True);
 
 # %% [markdown]
 # This reproduces the results shown in Figure S20 in the Supplementary Material:
 
 # %%
-fig = plot_sample_thinned(rw_samples, rw_thinned_idx, titles, var_labels);
+fig = plot_sample_thinned(rw_samples, rw_thinned_idx, titles, var_labels, n_points=n_points_display);
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning.png', dpi=300);
 fig.suptitle('Results of applying Stein thinning to samples from the random-walk Metropolis-Hastings algorithm');
 
@@ -1001,12 +1012,24 @@ def fit_mvt(
 
 
 # %%
-# %%time
-res = fit_mvt(rw_samples[0], mu_bounds=(-0.5, 0.5), a_bounds=(-0.1, 0.1), df_bounds=(2, 15), df_init=3.)
-res
+@subscriptable(n=len(theta_inits))
+@cached_batch(item_type=OptimizeResult, recalculate=recalculate, persist=True)
+def rw_t_fit() -> list[np.ndarray]:
+    # we have to instantiate the array here as the caching function currently cannot be serialised
+    samples = list(rw_samples)
+    def calculate(i):
+        return fit_mvt(samples[i], mu_bounds=(-0.5, 0.5), a_bounds=(-0.1, 0.1), df_bounds=(2, 15), df_init=3.)
+    return map_parallel(calculate, range(len(theta_inits)))
+
+
+# %% [markdown]
+# Force recalculation when necessary:
 
 # %%
-t_mu, t_scale, t_df = extract_t_params(res.x, d)
+#rw_t_fit.recalculate(persist=True);
+
+# %%
+t_mu, t_scale, t_df = extract_t_params(rw_t_fit[0].x, d)
 
 # %%
 t_mu
@@ -1183,8 +1206,6 @@ highlight_points(subsample, idx, [(0, 1), (2, 3)], axs, var_labels, highlighted_
 
 # %% [markdown]
 # # Energy distance comparison
-
-# %%
 
 # %%
 def fit_quality(subsample):

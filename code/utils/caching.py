@@ -243,26 +243,32 @@ def cached_batch[T](
         def filename_gen(func_name, i):
             return f'{func_name}_{i}'
     def decorator(func):
+        def do_recalculate(persist: bool = True):
+            logger.info('Recalculating batch: %s', func.__name__)
+            start_time = time.time()
+            batch = func()
+            end_time = time.time()
+            logger.info('Calculation time for %s: %f s', func.__name__, end_time - start_time)
+            if persist:
+                for j, item in enumerate(batch):
+                    entry_name = filename_gen(func.__name__, j)
+                    logger.debug(f'Persisting calculation result: {entry_name}')
+                    save_obj(entry_name, item)
+            return batch
+
         @wraps(func)
         def wrapper(i):
             entry_name = filename_gen(func.__name__, i)
             filepath = get_path(entry_name, item_type)
             if recalculate or not filepath.exists():
-                logger.info('Recalculating batch: %s', func.__name__)
-                start_time = time.time()
-                batch = func()
-                end_time = time.time()
-                logger.info('Calculation time for %s: %f s', func.__name__, end_time - start_time)
-                if persist:
-                    for j, item in enumerate(batch):
-                        entry_name = filename_gen(func.__name__, j)
-                        logger.debug(f'Persisting calculation result: {entry_name}')
-                        save_obj(entry_name, item)
-                res = batch[i]
+                res = do_recalculate(persist)[i]
             else:
                 logger.debug('Reading from disk cache: %s', entry_name)
                 res = read_obj(entry_name, item_type)
             return res
+
+        wrapper.recalculate = do_recalculate
+
         return lru_cache(memory_cache_maxsize)(wrapper)
     return decorator
 
