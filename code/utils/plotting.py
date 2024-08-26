@@ -137,7 +137,7 @@ def highlight_points(
     var_labels: Sequence[str] = None,
     show_labels: bool = False,
     sample_point_size: float = 1,
-    highlighted_point_size: float = None,
+    highlighted_point_size: Optional[float] = None,
     sample_point_color: str = 'lightgray',
     highlighted_point_color: str = 'red',
     sample_point_alpha: float = 0.3,
@@ -213,6 +213,7 @@ def plot_sample_thinned(
     thinned_idx: Sequence[Sequence[int]],
     titles: Optional[Sequence[str]],
     labels: Optional[Sequence[str]] = None,
+    n_points: Optional[int] = None,
 ) -> Figure:
     """Highlight selected points on sample scatter plot for multiple traces
     
@@ -226,6 +227,8 @@ def plot_sample_thinned(
         titles for rows of plots
     labels: Optional[Sequence[str]]
         variable names to use as axes labels
+    n_points: int
+        number of points to display. Default: display all points
 
     Returns
     -------
@@ -240,9 +243,10 @@ def plot_sample_thinned(
         else:
             subfig = subfigs
         if titles is not None:
-            subfig.suptitle(titles[i]);
+            subfig.suptitle(titles[i])
         axs = subfig.subplots(nrows=1, ncols=2)
-        highlight_points(trace, thinned_idx[i], [(0, 1), (2, 3)], axs, labels, highlighted_point_size=4)
+        idx = thinned_idx[i][:n_points]
+        highlight_points(trace, idx, [(0, 1), (2, 3)], axs, labels, highlighted_point_size=4)
 
     return fig
 
