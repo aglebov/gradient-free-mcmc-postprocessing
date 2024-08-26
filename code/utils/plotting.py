@@ -129,43 +129,83 @@ def plot_paths(
     return ax.figure
 
 
-def plot_thinned_coords(
-    samples: np.ndarray,
-    thinned_idx: Sequence[int],
-    coord1: int,
-    coord2: int,
-    ax: Axes,
-    labels: Optional[Sequence[str]] = None,
-):
-    """Highlight selected points on sample scatter plot
-    
+def highlight_points(
+    sample: np.ndarray,
+    indices: Iterable[int],
+    coord_spec: Sequence[Sequence[int]],
+    axs: Sequence[Axes] = None,
+    var_labels: Sequence[str] = None,
+    show_labels: bool = False,
+    sample_point_size: float = 1,
+    highlighted_point_size: float = None,
+    sample_point_color: str = 'lightgray',
+    highlighted_point_color: str = 'red',
+    sample_point_alpha: float = 0.3,
+) -> Figure:
+    """Highlight points on a scatter plot of a sample
+
     Parameters
     ----------
-    samples: np.ndarray
-        array of samples (rows are observations, columns are variables)
-    thinned_idx: Sequence[int]
-        indices of points in `samples` to highlight
-    coord1: int
-        index of variable to plot on the x axis
-    coord2: int
-        index of variable to plot on the y axis
+    sample: np.ndarray
+        points to plot
+    indices: Iterable[int]
+        indices of points to highlight
+    coord_spec: Sequence[Sequence[int]]
+        coordinates to display on plots. The number of elements will correspond to the number of plots.
+        Each element is a two-element sequence specifying the coordinates to plot on the x and y axes.
     ax: Axes
-        axes to plot on
-    labels: Optional[Sequence[str]]
-        variable names to use as axes labels
+        axes to plot on. If not provided, a new figure will be created with the number of subplots matching
+        `coord_spec`
+    var_labels: Sequence[str]
+        labels to use for the coordinates
+    show_labels: bool
+        if True, add index labels on the plot. Default: False
+    sample_point_size: float
+        size to use for plotting sample points. Default: 1
+    highlighted_point_size: float
+        size to use for plotting the highlighted points. Default: the matplotlib default
+    sample_point_color: str
+        color to use for plotting sample points. Default: `'lightgray'`
+    highlighted_point_color: str
+        color to use for plotting the highlighted points. Default: `'red'`
+    sample_point_alpha: float
+        transparency to use for plotting sample points. Default: 0.3
 
     Returns
     -------
-    None
+    Figure
+        figure used for plotting
     """
-    ax.scatter(samples[:, coord1], samples[:, coord2], color='lightgray', s=1);
-    ax.scatter(samples[thinned_idx, coord1], samples[thinned_idx, coord2], color='red', s=4);
-    if labels is not None:
-        ax.set_xlabel(labels[coord1]);
-        ax.set_ylabel(labels[coord2]);
+    if axs is None:
+        fig, axs = plt.subplots(1, len(coord_spec))
     else:
-        ax.set_xlabel(f'$x_{coord1 + 1}$');
-        ax.set_ylabel(f'$x_{coord2 + 1}$');
+        fig = axs[0].figure
+
+    for i, coords in enumerate(coord_spec):
+        ax = axs[i]
+        ax.scatter(
+            sample[:, coords[0]],
+            sample[:, coords[1]],
+            alpha=sample_point_alpha,
+            s=sample_point_size,
+            color=sample_point_color,
+        )
+        ax.scatter(
+            sample[indices, coords[0]],
+            sample[indices, coords[1]],
+            s=highlighted_point_size,
+            color=highlighted_point_color,
+        )
+
+        if show_labels:
+            for i, ind in enumerate(indices):
+                ax.text(sample[ind, 0], sample[ind, 1], str(ind))
+
+        if var_labels is not None:
+            ax.set_xlabel(var_labels[coords[0]])
+            ax.set_ylabel(var_labels[coords[1]])
+
+    return fig
 
 
 def plot_sample_thinned(
@@ -194,16 +234,15 @@ def plot_sample_thinned(
     """
     fig = plt.figure(constrained_layout=True, figsize=(12, 5 * len(traces)))
     subfigs = fig.subfigures(nrows=len(traces), ncols=1)
-    for i in range(len(traces)):
+    for i, trace in enumerate(traces):
         if len(traces) > 1:
             subfig = subfigs[i]
         else:
             subfig = subfigs
         if titles is not None:
             subfig.suptitle(titles[i]);
-        axs = subfig.subplots(nrows=1, ncols=2);
-        plot_thinned_coords(traces[i], thinned_idx[i], 0, 1, axs[0], labels=labels)
-        plot_thinned_coords(traces[i], thinned_idx[i], 2, 3, axs[1], labels=labels)
+        axs = subfig.subplots(nrows=1, ncols=2)
+        highlight_points(trace, thinned_idx[i], [(0, 1), (2, 3)], axs, labels, highlighted_point_size=4)
 
     return fig
 
@@ -276,9 +315,16 @@ def plot_density(
 def highlight_points(
     sample: np.ndarray,
     indices: Iterable[int],
+    coord_spec: Sequence[Sequence[int]],
+    axs: Sequence[Axes] = None,
+    var_labels: Sequence[str] = None,
     show_labels: bool = False,
-    ax: Axes = None
-):
+    sample_point_size: float = 1,
+    highlighted_point_size: float = None,
+    sample_point_color: str = 'lightgray',
+    highlighted_point_color: str = 'red',
+    sample_point_alpha: float = 0.3,
+) -> Figure:
     """Highlight points on a scatter plot of a sample
 
     Parameters
@@ -287,15 +333,59 @@ def highlight_points(
         points to plot
     indices: Iterable[int]
         indices of points to highlight
+    coord_spec: Sequence[Sequence[int]]
+        coordinates to display on plots. The number of elements will correspond to the number of plots.
+        Each element is a two-element sequence specifying the coordinates to plot on the x and y axes.
+    ax: Axes
+        axes to plot on. If not provided, a new figure will be created with the number of subplots matching
+        `coord_spec`
+    var_labels: Sequence[str]
+        labels to use for the coordinates
     show_labels: bool
         if True, add index labels on the plot. Default: False
-    ax: Axes
-        axes to plot on
+    sample_point_size: float
+        size to use for plotting sample points. Default: 1
+    highlighted_point_size: float
+        size to use for plotting the highlighted points. Default: the matplotlib default
+    sample_point_color: str
+        color to use for plotting sample points. Default: `'lightgray'`
+    highlighted_point_color: str
+        color to use for plotting the highlighted points. Default: `'red'`
+    sample_point_alpha: float
+        transparency to use for plotting sample points. Default: 0.3
+
+    Returns
+    -------
+    Figure
+        figure used for plotting
     """
-    if ax is None:
-        fig, ax = plt.subplots()
-    ax.scatter(sample[:, 0], sample[:, 1], alpha=0.3, color='gray')
-    ax.scatter(sample[indices, 0], sample[indices, 1], color='red')
-    if show_labels:
-        for i, ind in enumerate(indices):
-            ax.text(sample[ind, 0], sample[ind, 1], str(ind))
+    if axs is None:
+        fig, axs = plt.subplots(1, len(coord_spec))
+    else:
+        fig = axs[0].figure
+
+    for i, coords in enumerate(coord_spec):
+        ax = axs[i]
+        ax.scatter(
+            sample[:, coords[0]],
+            sample[:, coords[1]],
+            alpha=sample_point_alpha,
+            s=sample_point_size,
+            color=sample_point_color,
+        )
+        ax.scatter(
+            sample[indices, coords[0]],
+            sample[indices, coords[1]],
+            s=highlighted_point_size,
+            color=highlighted_point_color,
+        )
+
+        if show_labels:
+            for i, ind in enumerate(indices):
+                ax.text(sample[ind, 0], sample[ind, 1], str(ind))
+
+        if var_labels is not None:
+            ax.set_xlabel(var_labels[coords[0]])
+            ax.set_ylabel(var_labels[coords[1]])
+
+    return fig
