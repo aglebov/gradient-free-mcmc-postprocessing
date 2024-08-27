@@ -1334,10 +1334,11 @@ for i, selector in enumerate(selectors):
         for idx_name, label in indices_to_plot.items():
             res = get_indices(idx_name)(j)
             axs[i][j].plot(res[selector, 0], res[selector, 1], label=label);
-        axs[i][j].set_xlabel('Thinned size');
+        axs[i][j].set_xlabel('Thinned sample size');
         axs[i][j].set_ylabel('Energy distane');
         axs[i][j].set_title(f'Chain {j + 1}');
         axs[i][j].legend();
+fig.savefig(figures_path / 'lotka-volterra-stein-thinning-energy-distance.pdf');
 
 # %% [markdown]
 # Notebook execution took:

@@ -362,6 +362,7 @@ where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm
 We use synthetic data in order to have control over the ground truth in our experiments.
 
 \section{Bivariate Gaussian mixture}
+\label{sec:gaussian-mixture}
 
 The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm under favourable conditions. Here we take the target distribution to be the bivariate Gaussian mixture with means 
 $$
@@ -407,6 +408,8 @@ $$\nabla \log f(x) = \frac{\sum_{i=1}^k w_i \nabla f_i(x)}{\sum_{i=1}^k w_i f_i(
 \item a Laplace approximation of the target distribution,
 \item a KDE approximation of the target constructed from the sample.
 \end{itemize}
+
+\todo[inline]{Give details of the KDE estimator: type of kernel, bandwidth, etc.}
 
 The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplace proxy is striking, so we investigate it further. The other methods produce visually sensible results. One can notice some clustering of points selected by na\"ive thinning, whereas the Stein thinning and the gradient-free approach using the Gaussian proxy and the KDE proxy appear to spread points more evenly.
 
@@ -542,28 +545,49 @@ Equation~(\ref{eq:lotka-volterra:likelihood}) yields
 \end{equation*}
 where $q = 2$ is the dimension of the vector $\mathbf{u}(t)$ and $s \in \{1, \dots, 4\}$. This can be written in the matrix form as
 \begin{equation*}
-(\nabla_{\pmb{\theta}} \log \mathcal{L})(\pmb{\theta}) = \sum_{i=1}^N (J(t_i))^T (\nabla_{\mathbf{u}} \log \phi_i)(\mathbf{u}(t_i; \pmb{\theta})),
+(\nabla_{\pmb{\theta}} \log \mathcal{L})(\pmb{\theta}) = \sum_{i=1}^N (S(t_i))^T (\nabla_{\mathbf{u}} \log \phi_i)(\mathbf{u}(t_i; \pmb{\theta})),
 \end{equation*}
-where the elements of the Jacobian matrix are given by
+where the elements of the sensitivities matrix are given by
 \begin{equation*}
-J_{r,s} \coloneq \frac{\partial u_r}{\partial \theta_s}.
+S_{r,s} \coloneq \frac{\partial u_r}{\partial \theta_s}.
 \end{equation*}
 The gradient
 \begin{equation*}
 (\nabla_\mathbf{u} \log \phi_i)(\mathbf{u}(t_i; \pmb{\theta})) = C^{-1}(\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta}))
 \end{equation*}
-is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obtain the sensitivities $\frac{\partial u_r}{\partial \theta_s}$, we augment the system~(\ref{eq:lotka-volterra}) with additional forward sensitivity equations and solve it numerically. The derivation of the sensitivity equations can be found in Appendix~\ref{appendix:derivations:forward-sensitivity}. Alternatively, the sensitivities can be obtained by numerical differentiation, for example using the Python library \texttt{JAX}\footnote{https://jax.readthedocs.io}. Since the gradient is calculated independently for each element of the sample, the calculations can easily be parallelised.
+is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obtain the sensitivities $\frac{\partial u_r}{\partial \theta_s}$, we augment the system~(\ref{eq:lotka-volterra}) with additional forward sensitivity equations and solve it numerically. The derivation of the sensitivity equations can be found in Appendix~\ref{appendix:derivations:forward-sensitivity}. Alternatively, the sensitivities can be obtained by numerical differentiation, for example using the Python library \texttt{JAX}\footnote{\url{https://jax.readthedocs.io}}. Since the gradient is calculated independently for each element of the sample, these calculations can easily be parallelised\footnote{Parallelisation can be implemented with minimal effort using the Python \texttt{Dask} library (\url{https://docs.dask.org}) and run either locally or on Amazon Web Services (\url{https://aws.amazon.com}). See \url{https://github.com/aglebov/gradient-free-mcmc-postprocessing/blob/main/code/examples/Dask_AWS.ipynb} for a demonstration.}.
 
 The gradient of the log-prior is obtained immediately from~(\ref{eq:lotka-volterra:prior}):
 \begin{equation*}
 \nabla_{\pmb{\theta}} \log \pi(\pmb{\theta}) = -\pmb{\theta}.
 \end{equation*}
 
-The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volterra:stein:results} in the Appendix.
+The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volterra:stein:results} in the Appendix. We compare the performance of Stein thinning in linear and log space of parameters in Figure~\ref{fig:lotka-volterra:stein-thinning:energy-distance}:
+\begin{itemize}
+\item there is no discernible difference between the linear and log parameterisations,
+\item Stein thinning performs consistently for all chains, whereas na\"ive thinning fails for chain 4, which spent most of its time away from the high-probability region,
+\item Stein thinning improves on na\"ive thinning for sample sizes below 20 and above 2000, and is otherwise similar.
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{lotka-volterra-stein-thinning-energy-distance.pdf}
+}
+\caption{Energy distance comparison between Stein thinning and na\"ive thinning for MCMC chains in the Lotka-Volterra inverse problem.
+\label{fig:lotka-volterra:stein-thinning:energy-distance}}
+\end{figure}
+
+\paragraph{Gradient-free Stein thinning.} The KDE proxy, which performed best for the Gaussian mixture in Section~\ref{sec:gaussian-mixture}, becomes computationally infeasible here due to the size of the sample. Indeed, if KDE is built based on the entire sample, and is evaluated for each point of the sample, the resulting computational cost grows as $O(n^2)$, where $n$ is the sample size. One could try to build a KDE based on a subsample of size $m < n$, however if the computational budget is fixed (i.e. $mn = \text{const}$) then larger $n$ implies lower $m$ and thus inferior approximation of the target density.
 
 
 \chapter{Conclusions}
 \label{sec:conclusions}
+
+Open questions:
+\begin{itemize}
+\item Ability to parallelise the computation of KDE.
+\end{itemize}
 
 \bibliographystyle{plainnat_modified}
 \bibliography{biblio}
@@ -675,7 +699,7 @@ For the Lotka-Volterra model~(\ref{eq:lotka-volterra}), this yields eight additi
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=.6\textwidth]{lotka-volterra-naive-thinning.png}
+	\includegraphics[height=.9\textheight]{lotka-volterra-naive-thinning.png}
 }
 \caption{Results of na\"ive thinning of the sample from the Lotka-Volterra model.
 \label{fig:lotka-volterra:naive:results}}
@@ -684,9 +708,9 @@ For the Lotka-Volterra model~(\ref{eq:lotka-volterra}), this yields eight additi
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=.6\textwidth]{lotka-volterra-stein-thinning.png}
+	\includegraphics[height=.9\textheight]{lotka-volterra-stein-thinning.png}
 }
-\caption{Results of Stein thinning of the sample from the Lotka-Volterra model.
+\caption{The first 20 points selected by the Stein thinning algorithm for each MCMC chain in the Lotka-Volterra inverse problem.
 \label{fig:lotka-volterra:stein:results}}
 \end{figure}
 
