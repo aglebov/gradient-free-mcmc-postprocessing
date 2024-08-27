@@ -175,10 +175,10 @@ if save_data:
 # Implement random-walk Metropolis-Hastings algorithm by hand:
 
 # %%
-def log_target_density(theta):
-    _, u = solve_lotka_volterra(np.exp(theta))
+def log_target_density(log_theta):
+    _, u = solve_lotka_volterra(np.exp(log_theta))
     log_likelihood = np.sum(stats.multivariate_normal.logpdf(y - u, mean=means, cov=C))
-    log_prior = np.sum(stats.norm.logpdf(theta))
+    log_prior = np.sum(stats.norm.logpdf(log_theta))
     return log_likelihood + log_prior
 
 
@@ -226,6 +226,8 @@ rw_samples[0];
 # %%
 titles = [f'$\\theta^{{(0)}} = ({theta[0]}, {theta[1]}, {theta[2]}, {theta[3]})$' for theta in theta_inits]
 var_labels = [f'$\\log \\theta_{i + 1}$' for i in range(d)]
+
+# %%
 fig = plot_traces(rw_samples, titles=titles, var_labels=var_labels);
 fig.suptitle('Traces from the random-walk Metropolis-Hasting algorithm');
 
@@ -263,7 +265,7 @@ def acceptance_rate(sample):
 # %%
 @cached(recalculate=recalculate, persist=True)
 def rw_az_summary() -> pd.DataFrame:
-    return az.summary(to_arviz(rw_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
+    return az.summary(to_arviz(rw_samples, var_names=[f'log_theta{i + 1}' for i in range(d)]))
 
 
 # %%
@@ -278,10 +280,10 @@ rw_az_summary()
 # %%
 stan_model_spec = """
 functions {
-  vector lotka_volterra(real t, vector u, vector theta) {
+  vector lotka_volterra(real t, vector u, vector log_theta) {
     vector[2] dudt;
-    dudt[1] = exp(theta[1]) * u[1] - exp(theta[2]) * u[1] * u[2];
-    dudt[2] = exp(theta[4]) * u[1] * u[2] - exp(theta[3]) * u[2];
+    dudt[1] = exp(log_theta[1]) * u[1] - exp(log_theta[2]) * u[1] * u[2];
+    dudt[2] = exp(log_theta[4]) * u[1] * u[2] - exp(log_theta[3]) * u[2];
     return dudt;
   }
 }
@@ -294,11 +296,11 @@ data {
   vector<lower=0>[2] sigma;
 }
 parameters {
-  vector[4] theta;
+  vector[4] log_theta;
 }
 model {
-  array[T] vector[2] u = ode_rk45(lotka_volterra, u0, t0, ts, theta);
-  theta ~ std_normal();
+  array[T] vector[2] u = ode_rk45(lotka_volterra, u0, t0, ts, log_theta);
+  log_theta ~ std_normal();
   for (t in 1:T) {
     y[t] ~ normal(u[t], sigma);
   }
@@ -343,9 +345,9 @@ def hmc_samples() -> list[np.ndarray]:
         num_chains=len(theta_inits),
         num_samples=n_samples_hmc,
         save_warmup=True,
-        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
+        init=[{'log_theta': np.log(theta_init)} for theta_init in theta_inits]
     )
-    return extract_chains(stan_sample, 'theta')
+    return extract_chains(stan_sample, 'log_theta')
 
 
 # %%
@@ -359,8 +361,8 @@ fig.suptitle('Traces from the HMC algorithm');
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
 fig.suptitle('Traversal paths from the HMC algorithm');
-plot_paths(hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\theta_1$', label2='$\\theta_2$');
-plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\theta_3$', label2='$\\theta_4$');
+plot_paths(hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\log \\theta_1$', label2='$\\log \\theta_2$');
+plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\log \\theta_3$', label2='$\\log \\theta_4$');
 
 # %%
 [acceptance_rate(sample) for sample in hmc_samples]
@@ -372,7 +374,7 @@ plot_paths(hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='
 # %%
 @cached(recalculate=recalculate, persist=True)
 def hmc_az_summary() -> pd.DataFrame:
-    return az.summary(to_arviz(hmc_samples, var_names=[f'theta{i + 1}' for i in range(d)]))
+    return az.summary(to_arviz(hmc_samples, var_names=[f'log_theta{i + 1}' for i in range(d)]))
 
 
 # %%
@@ -401,9 +403,9 @@ def validation_hmc_samples() -> list[np.ndarray]:
         num_chains=len(theta_inits),
         num_samples=n_samples_hmc,
         save_warmup=False,
-        init=[{'theta': np.log(theta_init)} for theta_init in theta_inits]
+        init=[{'log_theta': np.log(theta_init)} for theta_init in theta_inits]
     )
-    return extract_chains(stan_sample, 'theta')
+    return extract_chains(stan_sample, 'log_theta')
 
 
 # %%
@@ -417,8 +419,8 @@ fig.suptitle('Traces from the validation sample');
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5))
 fig.suptitle('Traversal paths for the validation sample');
-plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\theta_1$', label2='$\\theta_2$');
-plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\theta_3$', label2='$\\theta_4$');
+plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=0, idx2=1, ax=axs[0], label1='$\\log \\theta_1$', label2='$\\log \\theta_2$');
+plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$\\log \\theta_3$', label2='$\\log \\theta_4$');
 
 # %%
 validation_sample = np.concatenate(validation_hmc_samples, axis=0)
@@ -577,21 +579,21 @@ for i in range(2):
 # %% [markdown]
 # The Stein Thinning methog requires the gradient of the log-posterior $\nabla \log p$ as input. Below we follow section S3 of the Supplementary Material to derive it.
 #
-# Since $p(x) \propto \mathcal{L}(x) \pi(x)$, we have 
-# $$\nabla_x \log p(x) = \nabla_x \log \mathcal{L}(x) + \nabla_x \log \pi(x).$$
+# Since $p(\pmb{\theta}) \propto \mathcal{L}(\pmb{\theta}) \pi(\pmb{\theta})$, we have 
+# $$\nabla_{\pmb{\theta}} \log p(\pmb{\theta}) = \nabla_{\pmb{\theta}} \log \mathcal{L}(\pmb{\theta}) + \nabla_{\pmb{\theta}} \log \pi(\pmb{\theta}).$$
 # Assuming independent errors in observations yields
-# $$\mathcal{L}(x) = \prod_{i=1}^N \phi_i(u(t_i)),$$
+# $$\mathcal{L}(\pmb{\theta}) = \prod_{i=1}^N \phi_i(u(t_i)),$$
 # and thus 
 # $$
-# \frac{\partial}{\partial x_s} \log \mathcal{L}(x) 
-# = \sum_{i=1}^N \frac{\partial}{\partial x_s} \log \phi_i(u(t_i))
-# = \sum_{i=1}^N \sum_{r=1}^q \frac{\partial}{\partial u_r} (\log \phi_i) \frac{\partial u_r}{\partial x_s},
+# \frac{\partial}{\partial \theta_s} \log \mathcal{L}(\pmb{\theta}) 
+# = \sum_{i=1}^N \frac{\partial}{\partial \theta_s} \log \phi_i(u(t_i))
+# = \sum_{i=1}^N \sum_{r=1}^q \frac{\partial}{\partial u_r} (\log \phi_i) \frac{\partial u_r}{\partial \theta_s},
 # $$
 # which can be written in matrix notation as
-# $$(\nabla_x \log \mathcal{L})(x) = \sum_{i=1}^N \left(\frac{\partial u}{\partial x}\right)^T\! (t_i)\, (\nabla_u \log \phi_i)(u(t_i)),$$
+# $$(\nabla_{\pmb{\theta}} \log \mathcal{L})(\pmb{\theta}) = \sum_{i=1}^N \left(\frac{\partial \mathbf{u}}{\partial \pmb{\theta}}\right)^T\! (t_i)\, (\nabla_u \log \phi_i)(u(t_i)),$$
 # where
-# $$\left(\frac{\partial u}{\partial x}\right)_{r,s} = \frac{\partial u_r}{\partial x_s}$$
-# is the Jacobian matrix of sensitivities, as obtained earlier.
+# $$\left(\frac{\partial \mathbf{u}}{\partial \pmb{\theta}}\right)_{r,s} = \frac{\partial u_r}{\partial \theta_s}$$
+# is the matrix of sensitivities, as obtained earlier.
 #
 # Note that this does not match the expression provided on page 16 of the Supplementary Material:
 # $$(\nabla \log \mathcal{L})(x) = -\sum_{i=1}^N \frac{\partial u}{\partial x}(t_i) (\nabla \log \phi_i)(u(t_i)),$$
@@ -602,10 +604,11 @@ for i in range(2):
 # we obtain
 # $$(\nabla_u \log \phi_i)(u(t_i)) = C^{-1}(y_i - u(t_i)).$$
 #
-# We assume independent standard normal priors for all parameters, therefore
-# $$\pi(x) = \prod_{i=1}^d \pi_i(x_i) \propto \exp\left(-\frac{1}{2}\sum_{i=1}^d x_i^2\right)$$
+# We assume independent standard normal priors for all components $\xi_i = \log \theta_i$, therefore
+# $$\pi(\pmb{\theta}) = \prod_{i=1}^d \pi_i(\log \theta_i) \propto \exp\left(-\frac{1}{2}\sum_{i=1}^d (\log \theta_i)^2\right)$$
 # and
-# $$\nabla_x \log \pi(x) = -x.$$
+# $$\nabla_{\pmb{\theta}} \log \pi(\pmb{\theta}) = -\frac{\log \pmb{\theta}}{\pmb{\theta}},$$
+# where both the logarithm and division are performed component-wise.
 
 # %% [markdown]
 # We calculate the gradient of the log-likelihood from the Jacobian obtained previosly:
@@ -665,7 +668,7 @@ grad_log_likelihood_jax(theta)
 
 # %%
 def grad_log_posterior(theta):
-    return grad_log_likelihood(theta) - theta
+    return grad_log_likelihood(theta) - np.log(theta) / theta
 
 
 # %%
@@ -912,6 +915,25 @@ x0 = np.mean(rw_samples[0], axis=0)
 res = minimize(lambda x: -log_target_density(x), x0)
 res
 
+# %% [markdown]
+# Nelder-Mead succeeds:
+
+# %%
+x0 = np.mean(rw_samples[0], axis=0)
+res = minimize(lambda x: -log_target_density(x), x0, method='Nelder-Mead')
+res
+
+# %% [markdown]
+# However, the Hessian evaluated at the maximum does not appear to be negative definite:
+
+# %%
+from numdifftools import Hessian
+
+# %%
+# %%time
+hess = Hessian(log_target_density)(res.x)
+hess
+
 
 # %% [markdown]
 # The returned Hessian matrix is not negative definite either:
@@ -922,7 +944,7 @@ def is_positive_definite(x):
 
 
 # %%
-is_positive_definite(-res.hess_inv)
+is_positive_definite(-hess)
 
 # %% [markdown]
 # ### Gaussian proxy
@@ -1243,43 +1265,6 @@ def fit_quality(subsample, validation_sample_step=10):
 
 
 # %%
-comparison_entries = {
-    'Stein thinning': rw_thinned_idx,
-    'Naive thinning': rw_naive_idx,
-}
-
-
-# %%
-def create_fit_table(samples, entries, column_names):
-    return pd.DataFrame(
-        [[fit_quality(samples[i][indices[i]]) for i in range(len(samples))] for _, indices in entries.items()],
-        index=entries.keys(),
-        columns=column_names,
-    )
-
-
-# %%
-@cached(recalculate=recalculate, persist=True)
-def rw_energy_distance_table() -> pd.DataFrame:
-    return create_fit_table(rw_samples, comparison_entries, range(1, len(rw_samples) + 1))
-
-
-# %%
-# %%time
-rw_energy_distance_table()
-
-# %%
-ax = sns.heatmap(
-    rw_energy_distance_table(),
-    annot=True,
-    fmt='.3f',
-    cmap=sns.cm.rocket_r,
-    vmax=np.quantile(rw_energy_distance_table(), 0.9)
-);
-ax.set_title('Energy distance between thinned samples and the validation sample');
-
-
-# %%
 def naive_idx(n, m):
     return np.linspace(0, n - 1, m).astype(int)
 
@@ -1327,17 +1312,16 @@ def get_indices(name):
 
 # %%
 # %%time
-fig, axs = plt.subplots(len(thinned_size_series), len(theta_inits), figsize=(18, 7), constrained_layout=True)
-selectors = [thinned_sizes <= 50, thinned_sizes >= 100]
-for i, selector in enumerate(selectors):
-    for j in range(len(theta_inits)):
-        for idx_name, label in indices_to_plot.items():
-            res = get_indices(idx_name)(j)
-            axs[i][j].plot(res[selector, 0], res[selector, 1], label=label);
-        axs[i][j].set_xlabel('Thinned sample size');
-        axs[i][j].set_ylabel('Energy distane');
-        axs[i][j].set_title(f'Chain {j + 1}');
-        axs[i][j].legend();
+fig, axs = plt.subplots(1, len(theta_inits), figsize=(17, 3), constrained_layout=True)
+for j in range(len(theta_inits)):
+    for idx_name, label in indices_to_plot.items():
+        res = get_indices(idx_name)(j)
+        axs[j].plot(res[:, 0], res[:, 1], label=label);
+    axs[j].set_xlabel('Thinned sample size');
+    axs[j].set_ylabel('Energy distane');
+    axs[j].set_title(f'Chain {j + 1}');
+    axs[j].legend();
+    axs[j].set_xscale('log');
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning-energy-distance.pdf');
 
 # %% [markdown]

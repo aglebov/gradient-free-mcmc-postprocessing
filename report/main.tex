@@ -89,7 +89,7 @@ The implementation of the gradient-free kernel Stein thinning was contributed by
 
 \chapter{Background}
 
-\section{Markov chain Monte Carlo}
+\section{Markov chain Monte Carlo (MCMC)}
 
 Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling from complex probability distributions.
 
@@ -491,11 +491,12 @@ where
 \phi_i(\mathbf{u}(t_i;\pmb{\theta})) \propto \exp\left( -\frac{1}{2} (\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta}))^T C^{-1} (\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta})) \right)
 \label{eq:lotka-volterra:error-distr}
 \end{equation}
-with $C = \diag(0.2^2, 0.2^2)$. We also choose the normal prior for $\pmb{\theta}$:
+with $C = \diag(0.2^2, 0.2^2)$. We also put independent standard normal priors on each of $\log \theta_i$, so that
 \begin{equation}
-\pi(\pmb{\theta}) \propto \exp \left(-\frac{1}{2} \pmb{\theta}^T \pmb{\theta} \right).
+\pi(\pmb{\theta}) \propto \exp \left(-\frac{1}{2} (\log \pmb{\theta})^T (\log \pmb{\theta}) \right),
 \label{eq:lotka-volterra:prior}
 \end{equation}
+where the logarithm in $\log \pmb{\theta}$ is applied component-wise.
 By the Bayes theorem, the posterior is then
 \begin{equation}
 p(\pmb{\theta}) \propto \mathcal{L}(\pmb{\theta}) \pi(\pmb{\theta}).
@@ -559,8 +560,9 @@ is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obta
 
 The gradient of the log-prior is obtained immediately from~(\ref{eq:lotka-volterra:prior}):
 \begin{equation*}
-\nabla_{\pmb{\theta}} \log \pi(\pmb{\theta}) = -\pmb{\theta}.
+\nabla_{\pmb{\theta}} \log \pi(\pmb{\theta}) = -\frac{\log \pmb{\theta}}{\pmb{\theta}},
 \end{equation*}
+where the logarithm and division are component-wise.
 
 The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volterra:stein:results} in the Appendix. We compare the performance of Stein thinning in linear and log space of parameters in Figure~\ref{fig:lotka-volterra:stein-thinning:energy-distance}:
 \begin{itemize}
@@ -673,14 +675,14 @@ $$\frac{\diff}{\diff t}\left(\frac{\partial u_r}{\partial \theta_s}\right)
 For the Lotka-Volterra model~(\ref{eq:lotka-volterra}), this yields eight additional equations:
 \begin{equation*}
 \begin{aligned}
-\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_1}\right) &= u_1 + (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_1} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_1}, \\
-\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_2}\right) &= - u_1 u_2 + (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_2} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_2}, \\
-\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_3}\right) &= (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_3} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_3}, \\
-\frac{d}{dt}\left(\frac{\partial u_1}{\partial \theta_4}\right) &= (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_4} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_4}, \\
-\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_1}\right) &= \theta_4 u_2 \frac{\partial u_1}{\partial \theta_1} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_1}, \\
-\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_2}\right) &= \theta_4 u_2 \frac{\partial u_1}{\partial \theta_2} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_2}, \\
-\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_3}\right) &= -u_2 + \theta_4 u_2 \frac{\partial u_1}{\partial \theta_3} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_3}, \\
-\frac{d}{dt}\left(\frac{\partial u_2}{\partial \theta_4}\right) &= u_1 u_2 + \theta_4 u_2 \frac{\partial u_1}{\partial \theta_4} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_4}. \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_1}{\partial \theta_1}\right) &= u_1 + (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_1} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_1}, \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_1}{\partial \theta_2}\right) &= - u_1 u_2 + (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_2} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_2}, \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_1}{\partial \theta_3}\right) &= (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_3} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_3}, \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_1}{\partial \theta_4}\right) &= (\theta_1 - \theta_2 u_2) \frac{\partial u_1}{\partial \theta_4} - \theta_2 u_1 \frac{\partial u_2}{\partial \theta_4}, \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_2}{\partial \theta_1}\right) &= \theta_4 u_2 \frac{\partial u_1}{\partial \theta_1} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_1}, \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_2}{\partial \theta_2}\right) &= \theta_4 u_2 \frac{\partial u_1}{\partial \theta_2} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_2}, \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_2}{\partial \theta_3}\right) &= -u_2 + \theta_4 u_2 \frac{\partial u_1}{\partial \theta_3} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_3}, \\
+\frac{\diff}{\diff t}\left(\frac{\partial u_2}{\partial \theta_4}\right) &= u_1 u_2 + \theta_4 u_2 \frac{\partial u_1}{\partial \theta_4} + (\theta_4 u_1 - \theta_3) \frac{\partial u_2}{\partial \theta_4}. \\
 \end{aligned}
 \end{equation*}
 
