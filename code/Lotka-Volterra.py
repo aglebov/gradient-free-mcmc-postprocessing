@@ -424,7 +424,7 @@ plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1
 validation_sample = np.concatenate(validation_hmc_samples, axis=0)
 
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Sensitivity analysis
 
 # %% [markdown]
@@ -724,7 +724,7 @@ def hmc_grads(i: int) -> np.ndarray:
 # ### Random-walk sample
 
 # %%
-n_points_calculate = 1000
+n_points_calculate = 10_000
 n_points_thinned = 20
 n_points_display = 20
 
@@ -756,6 +756,36 @@ fig = plot_sample_thinned(rw_samples, rw_thinned_idx, titles, var_labels, n_poin
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning.png', dpi=300);
 fig.suptitle('Results of applying Stein thinning to samples from the random-walk Metropolis-Hastings algorithm');
 
+
+# %% [markdown]
+# #### Log-transformation
+#
+# Since inference is performed in log-space, it is natural to try Stein thinning in log-space as well.
+#
+# If $\xi_i = \log \theta_i$, then by the chain rule we have
+# $$\frac{\partial f}{\partial \xi_i} = \sum_{j=1}^d \frac{\partial f}{\partial \theta_j} \frac{\partial \theta_j}{\partial \xi_i},$$
+# thus
+# $$\nabla_{\pmb{\xi}} \log p(\pmb{\xi}) = J^{-T} \nabla_{\pmb{\theta}} \log p(\pmb{\theta}),$$
+# where the Jacobian is $J = \text{diag}(\theta_1^{-1}, \dots, \theta_d^{-1})$, so $J^{-T} =  \text{diag}(\theta_1, \dots, \theta_d)$.
+
+# %%
+@subscriptable(n=len(theta_inits))
+@cached_batch(item_type=np.ndarray, recalculate=recalculate, persist=True)
+def rw_st_log_idx() -> list[np.ndarray]:
+    # we have to instantiate the array here as the caching function currently cannot be serialised
+    samples = list(rw_samples)
+    gradients = list(rw_grads)
+    def calculate(i):
+        return thin(samples[i], np.exp(samples[i]) * gradients[i], n_points_calculate, preconditioner='med')
+    return map_parallel(calculate, range(len(theta_inits)))
+
+
+# %% [markdown]
+# Force recalculation when necessary:
+
+# %%
+# %%time
+#rw_st_log_idx.recalculate(persist=True);
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ### HMC sample
@@ -1208,8 +1238,8 @@ highlight_points(subsample, idx, [(0, 1), (2, 3)], axs, var_labels, highlighted_
 # # Energy distance comparison
 
 # %%
-def fit_quality(subsample):
-    return np.sqrt(dcor.energy_distance(validation_sample[::10], subsample))
+def fit_quality(subsample, validation_sample_step=10):
+    return np.sqrt(dcor.energy_distance(validation_sample[::validation_sample_step], subsample))
 
 
 # %%
@@ -1247,6 +1277,67 @@ ax = sns.heatmap(
     vmax=np.quantile(rw_energy_distance_table(), 0.9)
 );
 ax.set_title('Energy distance between thinned samples and the validation sample');
+
+
+# %%
+def naive_idx(n, m):
+    return np.linspace(0, n - 1, m).astype(int)
+
+
+# %%
+thinned_size_series = []
+thinned_size_series.append(np.linspace(5, 100, 50).astype(int))
+thinned_size_series.append(np.linspace(100, n_points_calculate, 200).astype(int))
+thinned_sizes = np.concatenate(thinned_size_series)
+
+
+# %%
+@cached(recalculate=recalculate, persist=True)
+def rw_energy_distance(i_chain, idx_name) -> np.ndarray:
+    sample = rw_samples[i_chain]
+    idx = globals()[idx_name][i_chain]
+    energy_distances = np.fromiter((fit_quality(sample[idx[:thinned_size]]) for thinned_size in thinned_sizes), float)
+    return np.stack([thinned_sizes, energy_distances], axis=1)
+
+
+# %%
+@cached(recalculate=recalculate, persist=True)
+def rw_energy_distance_naive(i_chain) -> np.ndarray:
+    sample = rw_samples[i_chain]
+    n = sample.shape[0]
+    energy_distances = np.fromiter((fit_quality(sample[naive_idx(n, thinned_size)]) for thinned_size in thinned_sizes), float)
+    return np.stack([thinned_sizes, energy_distances], axis=1)
+
+
+# %%
+indices_to_plot = {
+    'rw_thinned_idx': 'Stein',
+    'rw_st_log_idx': 'Stein log',
+    'rw_naive': 'Naive',
+}
+
+
+# %%
+def get_indices(name):
+    if name == 'rw_naive':
+        return rw_energy_distance_naive
+    else:
+        return lambda i: rw_energy_distance(i, name)
+
+
+# %%
+# %%time
+fig, axs = plt.subplots(len(thinned_size_series), len(theta_inits), figsize=(18, 7), constrained_layout=True)
+selectors = [thinned_sizes <= 50, thinned_sizes >= 100]
+for i, selector in enumerate(selectors):
+    for j in range(len(theta_inits)):
+        for idx_name, label in indices_to_plot.items():
+            res = get_indices(idx_name)(j)
+            axs[i][j].plot(res[selector, 0], res[selector, 1], label=label);
+        axs[i][j].set_xlabel('Thinned size');
+        axs[i][j].set_ylabel('Energy distane');
+        axs[i][j].set_title(f'Chain {j + 1}');
+        axs[i][j].legend();
 
 # %% [markdown]
 # Notebook execution took:
