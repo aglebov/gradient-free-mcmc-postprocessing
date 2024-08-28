@@ -810,7 +810,7 @@ fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
 
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Naive thinning
 
 # %% [markdown]
@@ -1424,7 +1424,7 @@ fig.savefig(figures_path / 'lotka-volterra-stein-thinning-energy-distance.pdf');
 indices_to_plot = {
     'rw_naive': 'Naive',
     'rw_thinned_idx': 'Stein',
-    'rw_gf_t_idx': 'Gradient-free: t',
+    'rw_gf_t_idx': 'Gradient-free: t optimised',
     'rw_gf_t2_idx': 'Gradient-free: t fixed',
 }
 
@@ -1440,6 +1440,7 @@ for j in range(len(theta_inits)):
     axs[j].set_title(f'Chain {j + 1}');
     axs[j].legend();
     axs[j].set_xscale('log');
+fig.savefig(figures_path / 'lotka-volterra-gf-thinning-energy-distance.pdf');
 
 # %% [markdown]
 # Notebook execution took:
