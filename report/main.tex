@@ -95,6 +95,8 @@ Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling f
 
 The need to sample from a probability distribution arises in exploratory analysis as well as when analytical expressions are unavailable for quantities of interest, such as the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a numerical simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
 
+In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. Typically though, the complexity of the target distribution and the dimensionality of the parameter space render the simple methods infeasible or inefficient. Randomised algorithms, such as MCMC, have arisen to address the ensuing challenge.
+
 \todo[inline]{Describe alternatives: the inverse method, accept-reject and importance sampling}
 
 An MCMC algorithm proceeds by sequentially constructing a chain of samples\footnote{These are also sometimes called ``draws''. In this report, we follow the literature in using the term ``sample'' both for a single element in an MCMC chain and for all such elements taken together as a sample from the target distribution.} $x_1$, $x_2$, $\dots$,  where each sample is drawn from a transition distribution $Q$ conditional on the preceding value:
@@ -330,7 +332,7 @@ In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD
 
 \chapter{Methodology and Results}
 
-We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$. With inverse multiquadratic kernel~(\ref{eq:imq}), this results in the expression
+We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$. With the inverse multiquadratic kernel~(\ref{eq:imq}), this results in the expression
 \begin{equation*}
 \begin{aligned}
 k_{P,Q}(x, y)
@@ -342,7 +344,9 @@ k_{P,Q}(x, y)
 \label{eq:k_Q}
 \end{equation*}
 
-We aim to compare the performance of the proposed algorithm against na\"ive thinning (retaining each $i$-th element of the sample) and the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for several target distributions. The outline of the evaluation procedure for each test case is as follows:
+The implementation is added directly to the publicly available Python library \texttt{stein-thinning}.
+
+We proceed to compare the performance of the proposed algorithm against na\"ive thinning (retaining each $i$-th element of the sample) and the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for several target distributions. The outline of the evaluation procedure for each test case is as follows:
 \begin{enumerate}
 \item obtain a sample from the target distribution,
 \item apply na\"ive thinning, Stein thinning and the proposed algorithm to get a thinned sample of a given cardinality,
@@ -357,7 +361,7 @@ where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm
 \label{eq:energy-distance:discrete}
 \end{equation*}
 
-\todo[inline]{Advantages: objective and easy to calculate.}
+The advantages of choosing the energy distance as our quality metric are its relative ease of computation and its objectivity, since the energy distance is not directly optimised by the thinning algorithm.
 
 We use synthetic data in order to have control over the ground truth in our experiments.
 
@@ -393,14 +397,14 @@ and obtain 1000 samples by directly drawing from the target. A scatter plot of t
 \label{fig:gmm:sample}}
 \end{figure}
 
-\paragraph{Na\"ive thinning.} We select elements of the sample with equally-spaced indices.
+\paragraph{Na\"ive thinning.} We select elements of the sample with uniformly-spaced indices.
 
 \paragraph{Stein thinning.} The gradients of the log-target required by the Stein thinning algorithm can be obtained analytically in this case. For multivariate normal distributions with density functions
-$$f_i(x) = \frac{1}{(2\pi)^{d/2} |\Sigma_i|^{1/2}}\exp\left(-\frac{1}{2}(x - \mu_i)^T \Sigma_i^{-1}(x-\mu_i)\right),$$
-where $x \in \mathbb{R}^d$, the mixture density with $k$ components is given by
-$$f(x) = \sum_{i=1}^k w_i f_i(x),$$
+$$f_i(\mathbf{x}) = \frac{1}{(2\pi)^{d/2} |\Sigma_i|^{1/2}}\exp\left(-\frac{1}{2}(\mathbf{x} - \pmb{\mu}_i)^T \Sigma_i^{-1}(\mathbf{x}-\pmb{\mu}_i)\right),$$
+where $\mathbf{x} \in \mathbb{R}^d$, the mixture density with $k$ components is given by
+$$f(\mathbf{x}) = \sum_{i=1}^k w_i f_i(\mathbf{x}),$$
 thus the gradient of the log-density is obtained as
-$$\nabla \log f(x) = \frac{\sum_{i=1}^k w_i \nabla f_i(x)}{\sum_{i=1}^k w_i f_i(x)} = -\frac{\sum_{i=1}^k w_i f_i(x) \Sigma_i^{-1}(x - \mu_i)}{\sum_{i=1}^k w_i f_i(x)}.$$
+$$\nabla_{\mathbf{x}} \log f(\mathbf{x}) = \frac{\sum_{i=1}^k w_i \nabla_{\mathbf{x}} f_i(\mathbf{x})}{\sum_{i=1}^k w_i f_i(\mathbf{x})} = -\frac{\sum_{i=1}^k w_i f_i(\mathbf{x}) \Sigma_i^{-1}(\mathbf{x} - \pmb{\mu}_i)}{\sum_{i=1}^k w_i f_i(\mathbf{x})}.$$
 
 \paragraph{Gradient-free Stein thinning.} This approach requires us to select a proxy distribution. We consider several options:
 \begin{itemize}
@@ -409,7 +413,7 @@ $$\nabla \log f(x) = \frac{\sum_{i=1}^k w_i \nabla f_i(x)}{\sum_{i=1}^k w_i f_i(
 \item a KDE approximation of the target constructed from the sample.
 \end{itemize}
 
-\todo[inline]{Give details of the KDE estimator: type of kernel, bandwidth, etc.}
+For the KDE estimator, we choose the Gaussian kernel with bandwidth selected according to Silverman's rule.
 
 The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplace proxy is striking, so we investigate it further. The other methods produce visually sensible results. One can notice some clustering of points selected by na\"ive thinning, whereas the Stein thinning and the gradient-free approach using the Gaussian proxy and the KDE proxy appear to spread points more evenly.
 
@@ -447,6 +451,7 @@ Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved b
 We conclude that even in such a favourable setup, the performance of the gradient-free algorithm depends crucially on the choice of the proxy distribution.
 
 \section{Lotka-Volterra inverse problem}
+\label{sec:lotka-volterra}
 
 A more challenging case is presented by the inverse problem of parameter inference for the Lotka-Volterra model.
 
@@ -470,7 +475,7 @@ The resulting behaviour is driven by the four parameters $\theta_1, \dots, \thet
 
 If a realisation of $\mathbf{u}(t; \pmb{\theta})$ is observed for an interval $t \in [0, T]$ with $\pmb{\theta}$ unknown, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model for a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
 
-We take $\mathbf{u}(t;\pmb{\theta}^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\pmb{\theta}^* = (0.67, 1.33, 1, 1)^T$ and initial value $\mathbf{u}(0; \pmb{\theta}^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / 2400$ for $i \in \{0, 2400\}$. Bivariate i.i.d.\ Gaussian noise $\pmb{\varepsilon}(t) \sim \mathcal{N}\left( \mathbf{0}, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $\mathbf{y}(t) = \mathbf{u}(t;\pmb{\theta}^*) + \pmb{\varepsilon}(t)$ as our observed data. Figure~\ref{fig:lotka-volterra:data} displays the values $\mathbf{y}(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
+We take $\mathbf{u}(t;\pmb{\theta}^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\pmb{\theta}^* = (0.67, 1.33, 1, 1)^T$ and initial value $\mathbf{u}(0; \pmb{\theta}^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / N$ for $i \in \{0, 2400\}$. Bivariate i.i.d.\ Gaussian noise $\pmb{\varepsilon}(t) \sim \mathcal{N}\left( \mathbf{0}, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $\mathbf{y}(t) = \mathbf{u}(t;\pmb{\theta}^*) + \pmb{\varepsilon}(t)$ as our observed data. Figure~\ref{fig:lotka-volterra:data} displays the values $\mathbf{y}(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
 
 \begin{figure}[h]
 \centering
@@ -523,6 +528,8 @@ We follow \cite{riabizOptimalThinningMCMC2022} in selecting the starting values 
 
 Since the parameters of the Lotka-Volterra model are non-negative, we run inference in the log-space. The trace plots from running 500,000 iterations of the random-walk Metropolis-Hastings algorithm for each chain are shown in Figure~\ref{fig:lotka-volterra:trace-plots}. Figure~\ref{fig:lotka-volterra:chain-paths} confirms that all chains reach the high-probability region, albeit after considerable burn-in. Having obtained samples from the posterior distribution, we proceed to thin them.
 
+\todo[inline]{Add example sample, e.g. from the first chain.}
+
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
@@ -566,7 +573,7 @@ where the logarithm and division are component-wise.
 
 The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volterra:stein:results} in the Appendix. We compare the performance of Stein thinning in linear and log space of parameters in Figure~\ref{fig:lotka-volterra:stein-thinning:energy-distance}:
 \begin{itemize}
-\item there is no discernible difference between the linear and log parameterisations,
+\item there is no discernible difference between the linear and logarithmic parameterisations,
 \item Stein thinning performs consistently for all chains, whereas na\"ive thinning fails for chain 4, which spent most of its time away from the high-probability region,
 \item Stein thinning improves on na\"ive thinning for sample sizes below 20 and above 2000, and is otherwise similar.
 \end{itemize}
@@ -583,12 +590,22 @@ The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volter
 \paragraph{Gradient-free Stein thinning.} The KDE proxy, which performed best for the Gaussian mixture in Section~\ref{sec:gaussian-mixture}, becomes computationally infeasible here due to the size of the sample. Indeed, if KDE is built based on the entire sample, and is evaluated for each point of the sample, the resulting computational cost grows as $O(n^2)$, where $n$ is the sample size. One could try to build a KDE based on a subsample of size $m < n$, however if the computational budget is fixed (i.e. $mn = \text{const}$) then larger $n$ implies lower $m$ and thus inferior approximation of the target density.
 
 
-\chapter{Conclusions}
+\chapter{Conclusions and Further Work}
 \label{sec:conclusions}
 
-Open questions:
+This dissertation offers two contributions:
 \begin{itemize}
-\item Ability to parallelise the computation of KDE.
+\item Implementation of the gradient-free thinning made available in the Python library \texttt{stein-thinning}.
+\item Evaluation of the performance of the proposed approach for a Gaussian mixture and the Lotka-Volterra inverse problem.
+\end{itemize}
+
+We conclude that the gradient-free approach is feasible and performs similarly to the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for small thinned sample sizes, however its performance depends crucially on the choice of the proxy distribution. Even in the highly favourable setting of a Gaussian mixture, choosing the proxy based on the Laplace approximation fails to produce a thinned sample, while a simple Gaussian proxy using the sample mean and covariance proves to be inferior to the na\"ive thinning approach. Bespoke treatment is required for more complex problems, as demonstrated by the case of parameter inference in the Lotka-Volterra model. In deciding whether to use the new algorithm as opposed to the gradient-based approach, the effort involved in selecting a good proxy must be weighed against the computational time that would otherwise be required to obtain gradients.
+
+Many interesting avenues for further research remain open:
+\begin{itemize}
+\item Evaluate the choices of KDE kernels other than Gaussian for constructing the proxy distribution. Kernels with bounded support (uniform, saw-tooth, Epanechnikov) are expected to be of limited use, since they do not provide gradient estimates outside of their support, however fat-tailed kernels (e.g. exponential or Student's $t$) are an interesting option to consider.
+\item Parallelise the computation of KDE. As noted in Section~\ref{sec:lotka-volterra}, the computational cost of the KDE approach rises as $O(n^2)$, where $n$ is the size of the sample. Evaluations of the density, however, can be performed in parallel, extending the range of sample sizes that can be handled within a given time budget.
+\item Perform thinning in a lower-dimensional space. Samples from the MCMC runs for the Lotka-Volterra problem indicate correlation between the parameters. \todo{Refer to a figure showing the correlation between variables.} Principal component analysis (PCA) could be used to identify a lower-dimensional representation of the samples, and thinning could be done in the transformed space.
 \end{itemize}
 
 \bibliographystyle{plainnat_modified}
