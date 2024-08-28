@@ -526,7 +526,7 @@ We follow \cite{riabizOptimalThinningMCMC2022} in selecting the starting values 
 \label{table:lotka-volterra:starting_values}
 \end{table}
 
-Since the parameters of the Lotka-Volterra model are non-negative, we run inference in the log-space. The trace plots from running 500,000 iterations of the random-walk Metropolis-Hastings algorithm for each chain are shown in Figure~\ref{fig:lotka-volterra:trace-plots}. Figure~\ref{fig:lotka-volterra:chain-paths} confirms that all chains reach the high-probability region, albeit after considerable burn-in. Having obtained samples from the posterior distribution, we proceed to thin them.
+Since the parameters of the Lotka-Volterra model are non-negative, we run inference in the log-space. The trace plots from running 500,000 iterations of the random-walk Metropolis-Hastings algorithm for each chain are shown in Figure~\ref{fig:lotka-volterra:trace-plots}. Figure~\ref{fig:lotka-volterra:chain-paths} confirms that all chains reach the high-probability region, albeit after considerable burn-in, and Figure~\ref{fig:lotka-volterra:chain1-sample} demonstrates the sample obtained from the first chain. Having obtained samples from the posterior distribution, we proceed to thin them.
 
 \todo[inline]{Add example sample, e.g. from the first chain.}
 
@@ -537,6 +537,15 @@ Since the parameters of the Lotka-Volterra model are non-negative, we run infere
 }
 \caption{Chain paths from the random-walk Metropolis-Hastings algorithm for the Lotka-Volterra inference problem.
 \label{fig:lotka-volterra:chain-paths}}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{lotka-volterra-chain1-sample.png}
+}
+\caption{Sample of size 500,000 from the first chain from an MCMC run for the Lotka-Volterra inverse problem.
+\label{fig:lotka-volterra:chain1-sample}}
 \end{figure}
 
 \paragraph{Na\"ive thinning.} We select elements of the sample with uniformly spaced indices. The results are shown in Figure~\ref{fig:lotka-volterra:naive:results} in the Appendix.
@@ -605,7 +614,7 @@ Many interesting avenues for further research remain open:
 \begin{itemize}
 \item Evaluate the choices of KDE kernels other than Gaussian for constructing the proxy distribution. Kernels with bounded support (uniform, saw-tooth, Epanechnikov) are expected to be of limited use, since they do not provide gradient estimates outside of their support, however fat-tailed kernels (e.g. exponential or Student's $t$) are an interesting option to consider.
 \item Parallelise the computation of KDE. As noted in Section~\ref{sec:lotka-volterra}, the computational cost of the KDE approach rises as $O(n^2)$, where $n$ is the size of the sample. Evaluations of the density, however, can be performed in parallel, extending the range of sample sizes that can be handled within a given time budget.
-\item Perform thinning in a lower-dimensional space. Samples from the MCMC runs for the Lotka-Volterra problem indicate correlation between the parameters. \todo{Refer to a figure showing the correlation between variables.} Principal component analysis (PCA) could be used to identify a lower-dimensional representation of the samples, and thinning could be done in the transformed space.
+\item Perform thinning in a lower-dimensional space. Samples from the MCMC runs for the Lotka-Volterra problem (see Figure~\ref{fig:lotka-volterra:chain1-sample}, for example) indicate correlation between the parameters. Principal component analysis (PCA) could be used to identify a lower-dimensional representation of the samples, and thinning could be done in the transformed space.
 \end{itemize}
 
 \bibliographystyle{plainnat_modified}

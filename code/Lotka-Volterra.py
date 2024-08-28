@@ -245,6 +245,11 @@ plot_paths(rw_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1], label1='$
 fig.savefig(figures_path / 'lotka-volterra-chain-paths.png', dpi=600);
 fig.suptitle('Traversal paths from the random-walk Metropolis-Hastings algorithm');
 
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True);
+highlight_points(rw_samples[0], [], [(0, 1), (2, 3)], axs, var_labels, sample_point_color=None, sample_point_alpha=1.);
+fig.savefig(figures_path / 'lotka-volterra-chain1-sample.png', dpi=300);
+
 
 # %%
 def acceptance_rate(sample):
