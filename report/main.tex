@@ -77,6 +77,12 @@ United Kingdom\\
 
 \chapter*{Introduction}
 
+The Stein thinning algorithm was recently proposed by \cite{riabizOptimalThinningMCMC2022} to address the problem of selecting a subsample from Markov Chain Monte Carlo (MCMC) output for further expensive processing. The algorithm relies on the kernel Stein discrepancy (KSD), whose calculation involves the gradients of the log-target distribution. The requirement to provide the gradients imposes a significant computational cost on the practitioner attempting to use it for non-trivial distributions, in particular those defined implicitly as posteriors in Bayesian inverse problems. \cite{fisherGradientFreeKernelStein2024} develop a way around this challenge by formulating a gradient-free version of KSD, but stop short of attempting to apply it to the thinning problem.
+
+We adopt the proposal of \cite{fisherGradientFreeKernelStein2024} to implement a gradient-free version of the original Stein thinning algorithm, and evaluate the newly developed algorithm on simple but illustrative cases of the Gaussian mixture and the Lotka-Volterra inverse problem, demonstrating the feasibility of the algorithm, as well as its limitations.
+
+The report is structured as follows. Chapter~\ref{ch:background} reviews MCMC methods, and highlights the challenges of applying MCMC to practical problems. It proceeds to explain how the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} offers a solution for retrospective burn-in removal and compression of samples. The approach by \cite{fisherGradientFreeKernelStein2024} is then introduced. Chapter~\ref{ch:methodology} describes our computational experiments aiming to evaluate the approach by \cite{fisherGradientFreeKernelStein2024} in the context of thinning. Finally, Chapter~\ref{ch:conclusions} summarises the finding of the experiments and provides ideas for further research. Additional derivations and figures are included in the Appendices.
+
 The Python code accompanying this report can be found at:
 \begin{center}
 \url{https://github.com/aglebov/gradient-free-mcmc-postprocessing}.
@@ -88,6 +94,7 @@ The implementation of the gradient-free kernel Stein thinning was contributed by
 \end{center}
 
 \chapter{Background}
+\label{ch:background}
 
 \section{Markov chain Monte Carlo (MCMC)}
 
@@ -97,7 +104,7 @@ The need to sample from a probability distribution arises in exploratory analysi
 
 In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. Typically though, the complexity of the target distribution and the dimensionality of the parameter space render the simple methods infeasible or inefficient. Randomised algorithms, such as MCMC, have arisen to address the ensuing challenge.
 
-\todo[inline]{Describe alternatives: the inverse method, accept-reject and importance sampling}
+\todo[inline]{Describe alternatives: accept-reject and importance sampling}
 
 An MCMC algorithm proceeds by sequentially constructing a chain of samples\footnote{These are also sometimes called ``draws''. In this report, we follow the literature in using the term ``sample'' both for a single element in an MCMC chain and for all such elements taken together as a sample from the target distribution.} $x_1$, $x_2$, $\dots$,  where each sample is drawn from a transition distribution $Q$ conditional on the preceding value:
 $$x_{n+1} \sim Q(x_{n+1}|x_n).$$
@@ -331,6 +338,7 @@ The choice of a proxy is non-trivial, and \cite{fisherGradientFreeKernelStein202
 In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD for importance resampling and variational inference problems. In this dissertation, we adopt their approach for the thinning problem.
 
 \chapter{Methodology and Results}
+\label{ch:methodology}
 
 We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$. With the inverse multiquadratic kernel~(\ref{eq:imq}), this results in the expression
 \begin{equation*}
@@ -614,7 +622,7 @@ Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-
 Echoing the observations from the preceding section, we conclude that a good choice of the proxy distribution is key for successfully applying the gradient-free algorithm. It becomes clear, however, that a good choice might be difficult to make in practice, as it relies on the MCMC sample itself to guide the choice. Alternative measures of quality, such as the energy distance, might also be unavailable for larger samples, as was the case in the cardiac inference reported by \cite{riabizOptimalThinningMCMC2022}.
 
 \chapter{Conclusions and Further Work}
-\label{sec:conclusions}
+\label{ch:conclusions}
 
 This dissertation offers two contributions:
 \begin{itemize}
