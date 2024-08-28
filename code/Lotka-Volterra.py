@@ -168,7 +168,7 @@ if save_data:
     df.to_csv(filepath)
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Sample using a handwritten random-walk Metropolis-Hastings algorithm
 
 # %% [markdown]
@@ -426,7 +426,7 @@ plot_paths(validation_hmc_samples, np.log(theta_inits), idx1=2, idx2=3, ax=axs[1
 validation_sample = np.concatenate(validation_hmc_samples, axis=0)
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Sensitivity analysis
 
 # %% [markdown]
@@ -805,7 +805,7 @@ fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Naive thinning
 
 # %% [markdown]
@@ -836,14 +836,14 @@ fig.suptitle('Results of applying naive thinning to samples from the random-walk
 # We recalculate the (unnormalised) log target density for all samples. Note that in principle we could have stored it during the MCMC run rather than recalculating it.
 
 # %%
-@subscriptable
+@subscriptable(n=len(theta_inits))
 @cached(recalculate=recalculate, persist=True)
 def rw_log_p(i: int) -> np.ndarray:
     return parallelise_for_unique(log_target_density, rw_samples[i])
 
 
 # %%
-@subscriptable
+@subscriptable(n=len(theta_inits))
 @cached(recalculate=recalculate, persist=True)
 def hmc_log_p(i: int) -> np.ndarray:
     return parallelise_for_unique(log_target_density, hmc_samples[i])
@@ -934,9 +934,9 @@ from numdifftools import Hessian
 hess = Hessian(log_target_density)(res.x)
 hess
 
+# %%
+np.linalg.eigvals(hess)
 
-# %% [markdown]
-# The returned Hessian matrix is not negative definite either:
 
 # %%
 def is_positive_definite(x):
@@ -992,37 +992,15 @@ def extract_t_params(par, d):
 
     return mu, scale, df
 
-def loglik_mvt(Y: np.ndarray, par: np.ndarray) -> float:
-    """The log-likelihood of the multivariate t-distribution
-
-    Parameters
-    ----------
-    Y: np.ndarray
-        the input data: rows are observations, columns are variables
-    par: np.ndarray
-        the parameters of the multivariate t-distribution
-
-    Returns
-    -------
-    float
-        the log-likelihood of the multivariate t-distribution evaluated at the given point
-
-
-    Notes
-    -----
-    The parameters are passed as a one-dimensional array: first the means,
-    then the elements of the upper-triangular matrix A, where A.T @ A ~ Cov(Y),
-    followed by the degrees of freedom.
-    """
-    mu, scale, df = extract_t_params(par, Y.shape[1])
-    return -np.sum(stats.multivariate_t.logpdf(Y, loc=mu, shape=scale, df=df))
-
 def fit_mvt(
         Y: np.ndarray,
         mu_bounds: tuple[float, float],
         a_bounds: tuple[float, float],
         df_bounds: tuple[float, float],
+        mu_init: np.ndarray = None,
         df_init: float = 4.,
+        method: str = 'L-BFGS-B',
+        options: dict = None,
 ) -> OptimizeResult:
     """Fit a multivariate t-distribution using maximum likelihood
 
@@ -1046,27 +1024,76 @@ def fit_mvt(
     n_cov = d * (d + 1) // 2  # upper-triangular elements of an n-by-n matrix
 
     # the starting values for the search
-    sample_mean = np.mean(Y, axis=0)
+    if mu_init is None:
+        mu_init = np.mean(Y, axis=0)
     sample_cov = np.cov(Y, rowvar=False, ddof=d)
     A = np.linalg.cholesky(sample_cov).T
-    start = np.concatenate([sample_mean, A[np.triu_indices(d)], [df_init]])
+    start = np.concatenate([mu_init, A[np.triu_indices(d)], [df_init]])
 
     # the bounds for the search
     lower = np.array([mu_bounds[0]] * d + [a_bounds[0]] * n_cov + [df_bounds[0]])
     upper = np.array([mu_bounds[1]] * d + [a_bounds[1]] * n_cov + [df_bounds[1]])
+
+    def loglik_mvt(Y: np.ndarray, par: np.ndarray) -> float:
+        mu, scale, df = extract_t_params(par, Y.shape[1])
+        return -np.sum(stats.multivariate_t.logpdf(Y, loc=mu, shape=scale, df=df))
 
     def objective_func(beta):
         return loglik_mvt(Y, beta)
 
     bounds = list(zip(lower, upper))
 
-    return minimize(objective_func, start, method='L-BFGS-B', bounds=bounds)
+    return minimize(objective_func, start, method=method, bounds=bounds, options=options)
+
+def fit_mvt2(
+        Y: np.ndarray,
+        scale_bounds: tuple[float, float],
+        df_bounds: tuple[float, float],
+        mu: np.ndarray,
+        scale_init: float = 0.0,
+        df_init: float = 4.,
+        method: str = 'L-BFGS-B',
+        options: dict = None,
+) -> OptimizeResult:
+    """Fit a multivariate t-distribution using maximum likelihood
+
+    Parameters
+    ----------
+    Y: np.ndarray
+        the input data: rows are observations, columns are variables
+    mu_bounds: Tuple[float, float]
+        the lower and upper bounds for means
+    a_bounds: Tuple[float, float]
+        the lower and upper bounds for values in the matrix A, where A.T @ A ~ Cov(Y)
+    df_bounds: Tuple[float, float]
+        the lower and upper bounds for the degree of freedom parameter
+
+    Returns
+    -------
+    OptimizeResult
+        the result of fitting a multivariate t-distribution
+    """
+    d = Y.shape[1]  # the number of variables
+
+    # the starting values for the search
+    sample_cov = np.cov(Y, rowvar=False, ddof=d)
+
+    def loglik_mvt(Y: np.ndarray, scale, df) -> float:
+        return -np.sum(stats.multivariate_t.logpdf(Y, loc=mu, shape=np.exp(scale) * sample_cov, df=df))
+
+    def objective_func(beta):
+        return loglik_mvt(Y, beta[0], beta[1])
+
+    bounds = [scale_bounds, df_bounds]
+
+    start = np.array([scale_init, df_init])
+    return minimize(objective_func, start, method=method, bounds=bounds, options=options)
 
 
 # %%
 @subscriptable(n=len(theta_inits))
 @cached_batch(item_type=OptimizeResult, recalculate=recalculate, persist=True)
-def rw_t_fit() -> list[np.ndarray]:
+def rw_t_fit() -> list[OptimizeResult]:
     # we have to instantiate the array here as the caching function currently cannot be serialised
     samples = list(rw_samples)
     def calculate(i):
@@ -1081,7 +1108,22 @@ def rw_t_fit() -> list[np.ndarray]:
 #rw_t_fit.recalculate(persist=True);
 
 # %%
-t_mu, t_scale, t_df = extract_t_params(rw_t_fit[0].x, d)
+# %%time
+fit = fit_mvt(rw_samples[0], mu_bounds=(-0.5, 0.5), a_bounds=(-0.1, 0.1), df_bounds=(2, 30), df_init=4.)
+fit
+
+# %%
+t_mu, t_scale, t_df = extract_t_params(fit.x, d)
+
+# %%
+sample_mode = rw_samples[0][np.argmax(rw_log_p[0])]
+fit2 = fit_mvt2(rw_samples[0], scale_bounds=(-20, 20), df_bounds=(2, 30), mu=sample_mode)
+fit2
+
+# %%
+t_mu = sample_mode
+t_scale = np.cov(rw_samples[0], rowvar=False, ddof=d) * np.exp(fit2.x[0])
+t_df = fit2.x[1]
 
 # %%
 t_mu
@@ -1095,9 +1137,6 @@ t_df
 # %%
 t_df = np.round(t_df)
 t_df
-
-# %%
-log_q = stats.multivariate_t.logpdf(rw_samples[0], loc=t_mu, shape=t_scale, df=t_df)
 
 
 # %% [markdown]
@@ -1124,6 +1163,9 @@ def t_log_pdf(x, mu, sigma, df):
 
 
 # %%
+log_q = stats.multivariate_t.logpdf(rw_samples[0], loc=t_mu, shape=t_scale, df=t_df)
+
+# %%
 np.testing.assert_allclose(t_log_pdf(rw_samples[0], t_mu, t_scale, t_df), log_q)
 
 
@@ -1138,15 +1180,64 @@ def t_grad_log_pdf(x, mu, sigma, df):
 
 
 # %%
-gradient_q = t_grad_log_pdf(rw_samples[0], t_mu, t_scale, t_df)
+def thin_gf_t(sample, log_p, t_mu, t_scale, t_df, thinned_size):
+    log_q = stats.multivariate_t.logpdf(sample, loc=t_mu, shape=t_scale, df=t_df)
+    gradient_q = t_grad_log_pdf(sample, t_mu, t_scale, t_df)
+    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size, range_cap=200)
+
 
 # %%
-idx = thin_gf(rw_samples[0], rw_log_p[0], log_q, gradient_q, n_points_thinned, range_cap=200)
+idx = thin_gf_t(rw_samples[0], rw_log_p[0], t_mu, np.cov(rw_samples[0], rowvar=False, ddof=d) * 3, 4, 100)
 idx
+
+
+# %%
+def fit_quality(subsample, validation_sample_step=10):
+    return np.sqrt(dcor.energy_distance(validation_sample[::validation_sample_step], subsample))
+
+
+# %%
+fit_quality(rw_samples[0][rw_thinned_idx[0][:100]])
+
+# %%
+fit_quality(rw_samples[0][idx[:100]])
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 highlight_points(rw_samples[0], idx, [(0, 1), (2, 3)], axs, var_labels, highlighted_point_size=4);
+
+
+# %%
+@subscriptable(n=len(theta_inits))
+@cached_batch(item_type=np.ndarray, recalculate=recalculate, persist=True)
+def rw_gf_t_idx() -> list[np.ndarray]:
+    samples = list(rw_samples)
+    log_ps = list(rw_log_p)
+    t_fits = list(rw_t_fit)
+    def calculate(i):
+        t_mu, t_scale, t_df = extract_t_params(t_fits[i].x, d)
+        return thin_gf_t(samples[i], log_ps[i], t_mu, t_scale, t_df, n_points_calculate)
+    return map_parallel(calculate, range(len(theta_inits)))
+
+
+# %%
+#rw_gf_t_idx.recalculate(persist=True);
+
+# %%
+@subscriptable(n=len(theta_inits))
+@cached_batch(item_type=np.ndarray, recalculate=recalculate, persist=True)
+def rw_gf_t2_idx() -> list[np.ndarray]:
+    samples = list(rw_samples)
+    log_ps = list(rw_log_p)
+    def calculate(i):
+        sample_mode = samples[i][np.argmax(log_ps[i])]
+        sample_cov = np.cov(samples[i], rowvar=False, ddof=4)
+        return thin_gf_t(samples[i], log_ps[i], sample_mode, sample_cov * 3, 4, n_points_calculate)
+    return map_parallel(calculate, range(len(theta_inits)))
+
+
+# %%
+#rw_gf_t2_idx.recalculate(persist=True);
 
 # %% [markdown]
 # ## Sample with burn-in removed manually
@@ -1318,11 +1409,32 @@ for j in range(len(theta_inits)):
         res = get_indices(idx_name)(j)
         axs[j].plot(res[:, 0], res[:, 1], label=label);
     axs[j].set_xlabel('Thinned sample size');
-    axs[j].set_ylabel('Energy distane');
+    axs[j].set_ylabel('Energy distance');
     axs[j].set_title(f'Chain {j + 1}');
     axs[j].legend();
     axs[j].set_xscale('log');
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning-energy-distance.pdf');
+
+# %%
+indices_to_plot = {
+    'rw_naive': 'Naive',
+    'rw_thinned_idx': 'Stein',
+    'rw_gf_t_idx': 'Gradient-free: t',
+    'rw_gf_t2_idx': 'Gradient-free: t fixed',
+}
+
+# %%
+# %%time
+fig, axs = plt.subplots(1, len(theta_inits), figsize=(17, 3), constrained_layout=True)
+for j in range(len(theta_inits)):
+    for idx_name, label in indices_to_plot.items():
+        res = get_indices(idx_name)(j)
+        axs[j].plot(res[:, 0], res[:, 1], label=label);
+    axs[j].set_xlabel('Thinned sample size');
+    axs[j].set_ylabel('Energy distance');
+    axs[j].set_title(f'Chain {j + 1}');
+    axs[j].legend();
+    axs[j].set_xscale('log');
 
 # %% [markdown]
 # Notebook execution took:
