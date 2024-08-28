@@ -32,7 +32,7 @@
 
 \date{}
 \begin{document}
-\newgeometry{margin=4cm}
+\newgeometry{top=8cm}
 
 \thispagestyle{empty}
 \begin{center}
@@ -184,7 +184,7 @@ where $\delta(x)$ is the Dirac delta function.
 \frac{1}{m} \sum_{j=1}^m \delta(x_{\pi(j)})
 \label{eq:thinned-sample}
 \end{equation}
-is closest to the approximation given by the full set, and thus to the target distribution. The criterion of proximity is based on the kernel Stein discrepancy, itself a special case of the integral probability metric.
+is closest to the target distribution. The criterion of proximity is based on the kernel Stein discrepancy, itself a special case of the integral probability metric.
 
 \subsection{Kernel Stein discrepancy}
 
@@ -263,7 +263,7 @@ When $k(x, y)$ is chosen to be the inverse multiquadratic kernel (IMQ)
 k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta
 \label{eq:imq}
 \end{equation}
-with $\beta \in (-1, 0)$, \cite{gorhamMeasuringSampleQuality2017} demonstrate for $\Gamma = I$ that $\mathcal{D}_{P}(P')$ provides convergence control:
+with $\beta \in (-1, 0)$ and $\Gamma = I$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{P}(P')$ provides convergence control:
 \begin{itemize}
 \item if $\mathcal{D}_{P}(P'_m) \to 0$, then $P'_m$ converges in distribution to $P$ (Theorem 8),
 \item if $P'_m$ converges to $P$ in Wasserstein distance, then $\mathcal{D}_{P}(P'_m) \to 0$ (Proposition 9)
@@ -272,7 +272,7 @@ for a sequence of distributions $P'_m$ under suitable conditions. Theorem 4 by \
 
 The constant $c$ in~(\ref{eq:imq}) can be set to 1 without loss of generality, and the positive-definite preconditioner matrix $\Gamma$ can be chosen to exploit the geometry of the parameter space. \cite{riabizOptimalThinningMCMC2022} suggest several choices for $\Gamma$, in particular the identity matrix scaled by the median Euclidean distance between points in the sample, possibly further rescaled by $(\log m)^{-1/2}$ where $m$ is the desired cardinality of the thinned sample, or the sample covariance matrix. Based on empirical evaluation, \cite{gorhamMeasuringSampleQuality2017} and \cite{riabizOptimalThinningMCMC2022} settle on the value $\beta = -\frac12$.
 
-The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in section~\ref{appendix:derivations:imq-stein} and is coded directly in the Python library \texttt{stein-thinning}\footnote{Available from \url{https://github.com/wilson-ye-chen/stein_thinning}.}.
+The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in Appendix~\ref{appendix:derivations:imq-stein} and is coded directly in the Python library \texttt{stein-thinning}\footnote{Available from \url{https://github.com/wilson-ye-chen/stein_thinning}.}.
 
 Other choices of kernels are possible and offer convergence control, as demonstrated by \cite{chenSteinPoints2018}, however IMQ performed on par or better than the alternatives considered by the authors.
 
@@ -291,7 +291,7 @@ $$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k
 }
 \end{algorithm}
 
-The algorithm was implemented by the authors and made available in the open-source library \texttt{stein-thinning}. The computational complexity of the provided implementation is $O(nm)$.
+The algorithm was implemented by the authors and made available in the open-source library \texttt{stein-thinning}. The computational complexity of the provided implementation is $O(nm)$, allowing the algorithm to be used for large $n$ when $m$ is fixed.
 
 The strength of the method lies in its ability to correct for bias in the input sample, as established by Theorem 3 in \cite{riabizOptimalThinningMCMC2022}, meaning that the algorithm can be applied to samples from MCMC chains that have not converged to the target distribution, provided that its domain is sufficiently explored by the chains. The limitation of the method comes from its reliance on the gradients of the log-target, which may be expensive to compute.
 
@@ -326,7 +326,7 @@ where $p'$ is the density of distribution $P'$ and $k_Q(x, y)$ is given by~(\ref
 
 Both expression~(\ref{eq:ksd:discrete}) and~(\ref{eq:gf-ksd:discrete}) can be viewed as averaging the elements of matrices, and this fact is used to provide an efficient implementation of the greedy search described in Section~\ref{sec:stein-thinning}.
 
-When $k_Q(x,y)$ is based on IMQ with $\Gamma = I$, Theorem 2 in \cite{fisherGradientFreeKernelStein2024} proves that $\mathcal{D}_{P, Q}^2(P_m') \to 0$ implies that the sequence of distributions $P'_m$ converges weakly to $P$ as $m \to \infty$, thus ensuring convergence control. 
+When $k_Q(x,y)$ is based on IMQ with $\Gamma = I$, Theorem 2 in \cite{fisherGradientFreeKernelStein2024} asserts convergence control: $\mathcal{D}_{P, Q}^2(P_m') \to 0$ implies that the sequence of distributions $P'_m$ converges weakly to $P$ as $m \to \infty$. 
 
 While removing the need to calculate the gradient of log-target, the approach by \cite{fisherGradientFreeKernelStein2024} replaces it with the requirement to choose a suitable proxy distribution $Q$. The authors provide several examples:
 \begin{itemize}
@@ -337,7 +337,7 @@ While removing the need to calculate the gradient of log-target, the approach by
 
 The choice of a proxy is non-trivial, and \cite{fisherGradientFreeKernelStein2024} warn of possible failure of convergence control when the proxy density $q$ has either a substantially heavier or a substantially lighter tail than $p$. Two other situations are identified by the authors as detrimental to their approach: high dimension of the domain $\mathcal{X}$ and well separated high-probability regions.
 
-In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD for importance resampling and variational inference problems. In this dissertation, we adopt their approach for the thinning problem.
+In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD for importance resampling and variational inference problems. In what follows, we adopt their approach for the thinning problem.
 
 \chapter{Methodology and Results}
 \label{ch:methodology}
@@ -363,7 +363,7 @@ We proceed to compare the performance of the proposed algorithm against na\"ive 
 \item calculate the energy distance between the thinned sample and the target distribution and compare the values across the algorithms.
 \end{enumerate}
 
-In order to assess how well the selected sample approximates the posterior distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
+In order to assess how well the selected sample approximates the target distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
 $$D^2(F, G) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
 where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
 \begin{equation*}
@@ -413,7 +413,7 @@ and obtain 1000 samples by directly drawing from the target. A scatter plot of t
 $$f_i(\mathbf{x}) = \frac{1}{(2\pi)^{d/2} |\Sigma_i|^{1/2}}\exp\left(-\frac{1}{2}(\mathbf{x} - \pmb{\mu}_i)^T \Sigma_i^{-1}(\mathbf{x}-\pmb{\mu}_i)\right),$$
 where $\mathbf{x} \in \mathbb{R}^d$, the mixture density with $k$ components is given by
 $$f(\mathbf{x}) = \sum_{i=1}^k w_i f_i(\mathbf{x}),$$
-thus the gradient of the log-density is obtained as
+thus the gradient of its log-density is obtained as
 $$\nabla_{\mathbf{x}} \log f(\mathbf{x}) = \frac{\sum_{i=1}^k w_i \nabla_{\mathbf{x}} f_i(\mathbf{x})}{\sum_{i=1}^k w_i f_i(\mathbf{x})} = -\frac{\sum_{i=1}^k w_i f_i(\mathbf{x}) \Sigma_i^{-1}(\mathbf{x} - \pmb{\mu}_i)}{\sum_{i=1}^k w_i f_i(\mathbf{x})}.$$
 
 \paragraph{Gradient-free Stein thinning.} This approach requires us to select a proxy distribution. We consider several options:
@@ -483,9 +483,9 @@ The Lotka-Volterra model describes the evolution of an idealised ecosystem with 
 \end{equation}
 The resulting behaviour is driven by the four parameters $\theta_1, \dots, \theta_4$. It is convenient to denote the solution to this system as  $\mathbf{u}(t;\pmb{\theta}) = (u_1(t; \pmb{\theta}), u_2(t; \pmb{\theta}))^T$, where $\pmb{\theta}$ is the vector of parameter values $(\theta_1, \dots, \theta_4)^T$.
 
-If a realisation of $\mathbf{u}(t; \pmb{\theta})$ is observed for an interval $t \in [0, T]$ with $\pmb{\theta}$ unknown, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model for a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
+If a realisation of $\mathbf{u}(t; \pmb{\theta})$ is observed for an interval $t \in [0, T]$ with $\pmb{\theta}$ unknown, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model of a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
 
-We take $\mathbf{u}(t;\pmb{\theta}^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\pmb{\theta}^* = (0.67, 1.33, 1, 1)^T$ and initial value $\mathbf{u}(0; \pmb{\theta}^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / N$ for $i \in \{0, 2400\}$. Bivariate i.i.d.\ Gaussian noise $\pmb{\varepsilon}(t) \sim \mathcal{N}\left( \mathbf{0}, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $\mathbf{y}(t) = \mathbf{u}(t;\pmb{\theta}^*) + \pmb{\varepsilon}(t)$ as our observed data. Figure~\ref{fig:lotka-volterra:data} displays the values $\mathbf{y}(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
+We take $\mathbf{u}(t;\pmb{\theta}^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\pmb{\theta}^* = (0.67, 1.33, 1, 1)^T$ and initial value $\mathbf{u}(0; \pmb{\theta}^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / (N - 1)$ for $i \in \{0, N - 1\}$. Bivariate i.i.d.\ Gaussian noise $\pmb{\varepsilon}(t) \sim \mathcal{N}\left( \mathbf{0}, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $\mathbf{y}(t) = \mathbf{u}(t;\pmb{\theta}^*) + \pmb{\varepsilon}(t)$ as our observed data. Figure~\ref{fig:lotka-volterra:data} displays the values $\mathbf{y}(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
 
 \begin{figure}[h]
 \centering
@@ -536,7 +536,7 @@ We follow \cite{riabizOptimalThinningMCMC2022} in selecting the starting values 
 \label{table:lotka-volterra:starting_values}
 \end{table}
 
-Since the parameters of the Lotka-Volterra model are non-negative, we run inference in the log-space. The trace plots from running 500,000 iterations of the random-walk Metropolis-Hastings algorithm for each chain are shown in Figure~\ref{fig:lotka-volterra:trace-plots}. Figure~\ref{fig:lotka-volterra:chain-paths} confirms that all chains reach the high-probability region, albeit after considerable burn-in, and Figure~\ref{fig:lotka-volterra:chain1-sample} demonstrates the sample obtained from the first chain. Having obtained samples from the posterior distribution, we proceed to thin them.
+Since the parameters of the Lotka-Volterra model are non-negative, we run inference in the log-space. The trace plots from running 500,000 iterations of the random-walk Metropolis-Hastings algorithm for each chain are shown in Figure~\ref{fig:lotka-volterra:trace-plots} in the Appendix. Figure~\ref{fig:lotka-volterra:chain-paths} confirms that all chains reach the high-probability region, albeit after considerable burn-in, and Figure~\ref{fig:lotka-volterra:chain1-sample} demonstrates the sample obtained from the first chain. Having obtained samples from the posterior distribution, we proceed to thin them.
 
 \begin{figure}[h]
 \centering
@@ -608,7 +608,7 @@ The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volter
 
 As in the case of the Gaussian mixture, the Laplace approximation fails to produce a thinned sample here due to ratio $q(x) / p(x)$ vanishing away from the mode. Instead, we attempt to use the Student's $t$ distribution, which exhibits polynomially-decaying tails. To select the parameters of the $t$ distribution, we perform numerical optimisation in the spirit of Section 7.13.3 of \cite{ruppertStatisticsDataAnalysis2015}. As an alternative strategy, we also evaluate the following configuration: set the location of the Student's $t$ distribution to be the mode of the sample (i.e. the point with the highest target probability), set the scale parameter to the sample covariance multiplied by 3, and the degrees of freedom parameter to 4. The values were hand-picked by trial and error to achieve smaller resulting energy distance.
 
-Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-picked choice of the proxy out-performs the gradient-based approach in terms of energy distance, while the optimised choice comes fares worse, in fact coming out worse than the na\"ive thinning for the first chain. While it is surprising that the gradient-free approach being an approximation of the gradient-based algorithm ends up beating it on energy distance, we note that the energy distance looks at the similarity of distribution from a different angle compared to the KSD, so the two are not necessarily maximised by the same configuration. 
+Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-picked choice of the proxy out-performs the gradient-based approach in terms of energy distance, while the optimised choice fares worse, in fact for the first chain it comes out even worse than na\"ive thinning. While it is surprising that the gradient-free approach being an approximation of the gradient-based algorithm ends up beating it on energy distance, we note that the energy distance looks at the similarity of distributions from a different angle compared to the KSD, so the two are not necessarily maximised by the same configuration. 
 
 \todo[inline]{Plot KSD and check that the hand-picked version is worse than the gradient-based approach.}
 
@@ -621,18 +621,18 @@ Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-
 \label{fig:lotka-volterra:gf-thinning:energy-distance}}
 \end{figure}
 
-Echoing the observations from the preceding section, we conclude that a good choice of the proxy distribution is key for successfully applying the gradient-free algorithm. It becomes clear, however, that a good choice might be difficult to make in practice, as it relies on the MCMC sample itself to guide the choice. Alternative measures of quality, such as the energy distance, might also be unavailable for larger samples, as was the case in the cardiac inference reported by \cite{riabizOptimalThinningMCMC2022}.
+Echoing the observations from the preceding section, we conclude that a good choice of the proxy distribution is key for successfully applying the gradient-free algorithm. It becomes clear, however, that a good choice might be difficult to come up with in practice, as it relies on the MCMC sample to guide the search. Alternative measures of quality, such as the energy distance, might also be unavailable for larger samples, as was the case in the cardiac inference problem reported by \cite{riabizOptimalThinningMCMC2022}.
 
 \chapter{Conclusions and Further Work}
 \label{ch:conclusions}
 
-This dissertation offers two contributions:
+This dissertation makes two contributions:
 \begin{itemize}
-\item Implementation of the gradient-free thinning made available in the Python library \texttt{stein-thinning}.
+\item Implementation of the gradient-free thinning integrated into the Python library \texttt{stein-thinning}.
 \item Evaluation of the performance of the proposed approach for a Gaussian mixture and the Lotka-Volterra inverse problem.
 \end{itemize}
 
-We conclude that the gradient-free approach is feasible and performs similarly to the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for small thinned sample sizes, however its performance depends crucially on the choice of the proxy distribution. Even in the highly favourable setting of a Gaussian mixture, choosing the proxy based on the Laplace approximation fails to produce a thinned sample, while a simple Gaussian proxy using the sample mean and covariance proves to be inferior to the na\"ive thinning approach. Bespoke treatment is required for more complex problems, as demonstrated by the case of parameter inference in the Lotka-Volterra model. In deciding whether to use the new algorithm as opposed to the gradient-based approach, the effort involved in selecting a good proxy must be weighed against the computational time that would otherwise be required to obtain gradients.
+We conclude that the gradient-free approach is feasible and performs similarly to the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for small thinned sample sizes, however its performance depends crucially on the choice of the proxy distribution. Even in the highly favourable setting of a Gaussian mixture, choosing the proxy based on the Laplace approximation fails to produce a thinned sample, while a simple Gaussian proxy using the sample mean and covariance proves to be inferior to the na\"ive thinning approach. Bespoke treatment is required for more complex problems, as demonstrated by the case of parameter inference in the Lotka-Volterra model. In deciding whether to use the new algorithm as opposed to the gradient-based approach, the effort involved in selecting a good proxy must be weighed against the computational cost of obtaining gradients.
 
 Many interesting avenues for further research remain open:
 \begin{itemize}
@@ -643,9 +643,9 @@ Many interesting avenues for further research remain open:
 
 \item Perform thinning in a lower-dimensional space. Samples from the MCMC runs for the Lotka-Volterra problem (see Figure~\ref{fig:lotka-volterra:chain1-sample}, for example) indicate correlation between the parameters. Principal component analysis (PCA) could be used to identify a lower-dimensional representation of the samples, and thinning could be done in the transformed space.
 
-\item Develop a principled procedure for selecting the parameters of a Student's $t$ proxy. In Section~\ref{sec:lotka-volterra}, we hand-picked values for the parameters calculating based on calculating the energy distance for the resulting thinned sample repeatedly. The approach is dissatisfying in its arbitrariness. Instead, one can try picking the degrees of freedom parameter based on the tail behaviour of the target distribution and then optimising the location and scale of the $t$ distribution.
+\item Develop a principled procedure for selecting the parameters of a Student's $t$ proxy. In Section~\ref{sec:lotka-volterra}, we hand-picked values for the parameters by calculating the energy distance for the resulting sample repeatedly. The approach is dissatisfying in its arbitrariness. Instead, one could, for example, try choosing the degrees of freedom parameter based on the tail behaviour of the target distribution and then optimising the location and scale of the $t$ distribution.
 
-\item Investigate the feature of Figure~\ref{fig:lotka-volterra:stein-thinning:energy-distance}, whereby the energy distance of thinned samples from the gradient-based algorithm remains approximately constant up to sample sizes around 1000, and then starts reducing further. \cite{riabizOptimalThinningMCMC2022} plot the corresponding dependency for sample sizes up to 200, so we cannot be sure the same effect was observed in their experiments.
+\item Investigate the feature of Figure~\ref{fig:lotka-volterra:stein-thinning:energy-distance}, whereby the energy distance for the gradient-based algorithm remains approximately constant up to sample sizes around 1000, and then starts reducing further. \cite{riabizOptimalThinningMCMC2022} plot the corresponding dependency for sample sizes up to 200, so we cannot be sure if the same effect was observed in their experiments.
 
 \item Compare the performance of the approaches in terms of estimating the true parameters of the Lotka-Volterra model. While the energy distance offers a richer metric of dissimilarity between distributions, parameter inference is often the goal in practice, so a simple comparison between first moment estimates could be useful.
 
