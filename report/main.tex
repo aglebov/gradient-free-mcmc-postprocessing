@@ -626,9 +626,27 @@ We conclude that the gradient-free approach is feasible and performs similarly t
 
 Many interesting avenues for further research remain open:
 \begin{itemize}
+
 \item Evaluate the choices of KDE kernels other than Gaussian for constructing the proxy distribution. Kernels with bounded support (uniform, saw-tooth, Epanechnikov) are expected to be of limited use, since they do not provide gradient estimates outside of their support, however fat-tailed kernels (e.g. exponential or Student's $t$) are an interesting option to consider.
+
 \item Parallelise the computation of KDE. As noted in Section~\ref{sec:lotka-volterra}, the computational cost of the KDE approach rises as $O(n^2)$, where $n$ is the size of the sample. Evaluations of the density, however, can be performed in parallel, extending the range of sample sizes that can be handled within a given time budget.
+
 \item Perform thinning in a lower-dimensional space. Samples from the MCMC runs for the Lotka-Volterra problem (see Figure~\ref{fig:lotka-volterra:chain1-sample}, for example) indicate correlation between the parameters. Principal component analysis (PCA) could be used to identify a lower-dimensional representation of the samples, and thinning could be done in the transformed space.
+
+\item Develop a principled procedure for selecting the parameters of a Student's $t$ proxy. In Section~\ref{sec:lotka-volterra}, we hand-picked values for the parameters calculating based on calculating the energy distance for the resulting thinned sample repeatedly. The approach is dissatisfying in its arbitrariness. Instead, one can try picking the degrees of freedom parameter based on the tail behaviour of the target distribution and then optimising the location and scale of the $t$ distribution.
+
+\item Investigate the feature of Figure~\ref{fig:lotka-volterra:stein-thinning:energy-distance}, whereby the energy distance of thinned samples from the gradient-based algorithm remains approximately constant up to sample sizes around 1000, and then starts reducing further. \cite{riabizOptimalThinningMCMC2022} plot the corresponding dependency for sample sizes up to 200, so we cannot be sure the same effect was observed in their experiments.
+
+\item Compare the performance of the approaches in terms of estimating the true parameters of the Lotka-Volterra model. While the energy distance offers a richer metric of dissimilarity between distributions, parameter inference is often the goal in practice, so a simple comparison between first moment estimates could be useful.
+
+\item Building on the preceding idea, run an experiment initialising a large number of chains with starting values drawn from some distribution, perform sampling and thinning, and compare the mean-squared errors of the resulting parameter estimates.
+
+\item Repeat the experiments in Section~\ref{sec:lotka-volterra} with more advanced MCMC algorithms, for example the MALA sampler considered in \cite{riabizOptimalThinningMCMC2022} or the NUTS sampler implemented in the \texttt{Stan} library.
+
+\item Check how running a gradient-free MCMC sampling algorithm (such the random-walk Metropolis-Hastings) followed by Stein thinning of the sample compares to running a gradient-based sampling algorithm (e.g. NUTS). Given the sequential nature of MCMC, the costs of calculating the gradients add up in the later case, but can be parallelised in the former. It would be interesting to see which approach produces higher-quality samples under a fixed time budget.
+
+\item Demonstrate the bias-correction result of Theorem 3 in \cite{riabizOptimalThinningMCMC2022} for the gradient-free algorithm.
+
 \end{itemize}
 
 \bibliographystyle{plainnat_modified}
