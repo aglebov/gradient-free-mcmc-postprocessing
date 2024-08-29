@@ -38,7 +38,7 @@ from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _make_
 from stein_thinning.stein import kmat
 
 from utils.mvn import make_mvn_mixture
-from utils.plotting import highlight_points, plot_density
+from utils.plotting import centered_subplots, highlight_points, plot_density
 
 # %%
 figures_path = Path('../report') / 'figures'
@@ -346,30 +346,6 @@ entries_report = [
     (idx_gf_kde, 'Gradient-free Stein thinning: KDE proxy'),
     (idx_gf_laplace, 'Gradient-free Stein thinning: Laplace proxy'),
 ]
-
-
-# %%
-def centered_subplots(fig, rows):
-    # https://stackoverflow.com/questions/53361373/center-the-third-subplot-in-the-middle-of-second-row-python
-    grid_dim = max(rows)
-    grid_shape = (len(rows), 2 * grid_dim)
-  
-    axs = []
-    
-    jrow = 0
-    for row in rows:
-        offset = 0
-        for i in range(row):
-            if row < grid_dim:
-                offset = grid_dim - row
-            ax_position = (jrow, 2 * i + offset)
-            ax = plt.subplot2grid(grid_shape, ax_position, fig=fig, colspan=2)
-            axs.append(ax)
-            
-        jrow += 1
-        
-    return axs
-
 
 # %%
 fig = plt.figure(constrained_layout=True, figsize=(n_cols * 5, n_rows * 4))

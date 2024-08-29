@@ -316,3 +316,35 @@ def plot_density(
         ax.figure.colorbar(sm, ax=ax, ticks=cs.levels)
 
     ax.set_title(title)
+
+
+def centered_subplots(fig: Figure, row_specs: Sequence[int]) -> Sequence[Axes]:
+    """Create a grid of axes following the provided specification
+
+    The code was adapted from the answer https://stackoverflow.com/questions/53361373/center-the-third-subplot-in-the-middle-of-second-row-python
+
+    Parameters
+    ----------
+    fig: Figure
+        figure to create plots in
+    row_specs: Sequence[int]
+        number of plots to create in each row
+
+    Returns
+    -------
+    Sequence[Axes]
+        flat sequence of axes corresponding to plots in the grid
+    """
+    max_cols = max(row_specs)
+    grid_shape = (len(row_specs), 2 * max_cols)
+
+    axs = []
+
+    for i_row, n_cols in enumerate(row_specs):
+        offset = max_cols - n_cols if n_cols < max_cols else 0
+        for i_col in range(n_cols):
+            ax_position = (i_row, 2 * i_col + offset)
+            ax = plt.subplot2grid(grid_shape, ax_position, fig=fig, colspan=2)
+            axs.append(ax)
+
+    return axs
