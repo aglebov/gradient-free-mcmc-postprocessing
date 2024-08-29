@@ -51,7 +51,7 @@ from mcmc import sample_chain, metropolis_random_walk_step, rw_proposal_sampler
 import utils.caching
 from utils.caching import cached, cached_batch, subscriptable
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
-from utils.plotting import highlight_points, plot_paths, plot_sample_thinned, plot_traces
+from utils.plotting import centered_subplots, highlight_points, plot_paths, plot_sample_thinned, plot_traces
 from utils.sampling import to_arviz
 
 # %%
@@ -1408,7 +1408,8 @@ def get_indices(name):
 
 # %%
 # %%time
-fig, axs = plt.subplots(1, len(theta_inits), figsize=(17, 3), constrained_layout=True)
+fig = plt.figure(figsize=(15, 9), constrained_layout=True)
+axs = centered_subplots(fig, [3, 2])
 for j in range(len(theta_inits)):
     for idx_name, label in indices_to_plot.items():
         res = get_indices(idx_name)(j)
@@ -1430,7 +1431,8 @@ indices_to_plot = {
 
 # %%
 # %%time
-fig, axs = plt.subplots(1, len(theta_inits), figsize=(17, 3), constrained_layout=True)
+fig = plt.figure(figsize=(15, 9), constrained_layout=True)
+axs = centered_subplots(fig, [3, 2])
 for j in range(len(theta_inits)):
     for idx_name, label in indices_to_plot.items():
         res = get_indices(idx_name)(j)

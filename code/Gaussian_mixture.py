@@ -348,8 +348,8 @@ entries_report = [
 ]
 
 # %%
-fig = plt.figure(constrained_layout=True, figsize=(n_cols * 5, n_rows * 4))
-axs = centered_subplots(fig, [2, 2, 1])
+fig = plt.figure(constrained_layout=True, figsize=(15, 9))
+axs = centered_subplots(fig, [3, 2])
 for i, (idx, title) in enumerate(entries_report):
     ax = axs[i]
     highlight_points(
