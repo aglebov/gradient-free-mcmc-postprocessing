@@ -1,6 +1,7 @@
 # ---
 # jupyter:
 #   jupytext:
+#     custom_cell_magics: kql
 #     formats: ipynb,py:percent
 #     text_representation:
 #       extension: .py
@@ -19,10 +20,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
 from scipy.stats import multivariate_normal as mvn
+
 import seaborn as sns
+
 import dcor
 
 from jax import grad
@@ -321,7 +325,14 @@ n_rows = (len(entries) - 1) // n_cols + 1
 fig, axs = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4));
 for i, (idx, title) in enumerate(entries):
     ax = axs[i // 2][i % 2]
-    highlight_points(sample, idx[:n_points_display], ax=ax)
+    highlight_points(
+        sample,
+        idx[:n_points_display],
+        coord_spec=[(0, 1)],
+        axs=[ax],
+        sample_point_color='grey',
+        sample_point_size=None,
+    )
     ax.set_title(title);
 
 # %% [markdown]
@@ -365,7 +376,14 @@ fig = plt.figure(constrained_layout=True, figsize=(n_cols * 5, n_rows * 4))
 axs = centered_subplots(fig, [2, 2, 1])
 for i, (idx, title) in enumerate(entries_report):
     ax = axs[i]
-    highlight_points(sample, idx[:n_points_display], ax=ax)
+    highlight_points(
+        sample,
+        idx[:n_points_display],
+        coord_spec=[(0, 1)],
+        axs=[ax],
+        sample_point_color='grey',
+        sample_point_size=None,
+    )
     ax.set_title(title);
     ax.set_xlabel('$x_1$');
     ax.set_ylabel('$x_2$');
@@ -428,7 +446,13 @@ fig.savefig(figures_path / 'gaussian-mixture-comparison.pdf');
 # We have seen that the performance of the gradient-free algorithm with a weighted KDE is unsatisfactory. The scatter plot of the selected points suggests that the algorithm picks points that have a low probability. We can confirm this by highlighting the points with the lowest probability in the sample:
 
 # %%
-highlight_points(sample, np.argsort(log_q)[:20])
+highlight_points(
+    sample,
+    np.argsort(log_q)[:20],
+    coord_spec=[(0, 1)],
+    sample_point_color='grey',
+    sample_point_size=None,
+);
 
 # %% [markdown]
 # The gradient-free integrand includes the multiplier $q(x)/p(x)$. In the plain KDE, $q(x)$ will be proportional to the density of sample points in te vicinity of $x$. Applying weights has the effect of reducing $q(x)$ further, thus penalising the points in the low-probability area twice.
@@ -465,7 +489,14 @@ kmats = [kmat(integrand, sample.shape[0]) for integrand in integrands]
 titles = ['Standard Stein', 'Gradient-free with KDE', 'Gradient-free with weighted KDE']
 fig, axs = plt.subplots(1, 3, figsize=(15, 4))
 for i, km in enumerate(kmats):
-    highlight_points(sample, np.argsort(np.abs(np.diag(km)))[:20], ax=axs[i])
+    highlight_points(
+        sample,
+        np.argsort(np.abs(np.diag(km)))[:20],
+        coord_spec=[(0, 1)],
+        axs=[axs[i]],
+        sample_point_color='grey',
+        sample_point_size=None,
+    );
     axs[i].set_title(titles[i]);
 
 # %% [markdown]
