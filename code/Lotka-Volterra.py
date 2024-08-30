@@ -810,7 +810,7 @@ fig = plot_sample_thinned(hmc_samples, hmc_thinned_idx, titles, var_labels);
 fig.suptitle('Results of applying Stein thinning to samples from the HMC algorithm');
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Naive thinning
 
 # %% [markdown]
@@ -1394,7 +1394,7 @@ def rw_energy_distance_naive(i_chain) -> np.ndarray:
 indices_to_plot = {
     'rw_thinned_idx': 'Stein',
     'rw_st_log_idx': 'Stein log',
-    'rw_naive': 'Naive',
+    'rw_naive': 'Naïve',
 }
 
 
@@ -1407,7 +1407,7 @@ def get_indices(name):
 
 
 # %%
-def plot_comparison(result_function, entries):
+def plot_comparison(result_function, entries, y_label):
     fig = plt.figure(figsize=(15, 9), constrained_layout=True)
     axs = centered_subplots(fig, [3, 2])
     for j in range(len(theta_inits)):
@@ -1415,7 +1415,7 @@ def plot_comparison(result_function, entries):
             res = result_function(idx_name)(j)
             axs[j].plot(res[:, 0], res[:, 1], label=label);
         axs[j].set_xlabel('Thinned sample size');
-        axs[j].set_ylabel('Energy distance');
+        axs[j].set_ylabel(y_label);
         axs[j].set_title(f'Chain {j + 1}');
         axs[j].legend();
         axs[j].set_xscale('log');
@@ -1424,7 +1424,7 @@ def plot_comparison(result_function, entries):
 
 # %%
 # %%time
-fig = plot_comparison(get_indices, indices_to_plot)
+fig = plot_comparison(get_indices, indices_to_plot, y_label='Energy distance')
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning-energy-distance.pdf');
 
 # %%
@@ -1479,12 +1479,12 @@ def get_indices_ksd(name):
 
 # %%
 # %%time
-fig = plot_comparison(get_indices_ksd, indices_to_plot)
+fig = plot_comparison(get_indices_ksd, indices_to_plot, y_label='Kernel Stein discrepancy')
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning-ksd.pdf');
 
 # %%
 indices_to_plot = {
-    'rw_naive': 'Naive',
+    'rw_naive': 'Naïve',
     'rw_thinned_idx': 'Stein',
     'rw_gf_t_idx': 'Gradient-free: t optimised',
     'rw_gf_t2_idx': 'Gradient-free: t fixed',
@@ -1492,12 +1492,12 @@ indices_to_plot = {
 
 # %%
 # %%time
-fig = plot_comparison(get_indices, indices_to_plot)
+fig = plot_comparison(get_indices, indices_to_plot, y_label='Energy distance')
 fig.savefig(figures_path / 'lotka-volterra-gf-thinning-energy-distance.pdf');
 
 # %%
 # %%time
-fig = plot_comparison(get_indices_ksd, indices_to_plot)
+fig = plot_comparison(get_indices_ksd, indices_to_plot, y_label='Kernel Stein discrepancy')
 fig.savefig(figures_path / 'lotka-volterra-gf-thinning-ksd.pdf');
 
 # %% [markdown]

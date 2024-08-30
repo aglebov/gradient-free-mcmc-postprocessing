@@ -296,12 +296,12 @@ idx_gf_laplace = thin_gf(sample, log_p, log_q_laplace, gradient_q_laplace, thinn
 
 # %%
 entries = [
-    (idx_naive, 'Naive thinning'),
+    (idx_naive, 'Naïve thinning'),
     (idx_st, 'Stein thinning'),
-    (idx_gf, 'Gradient-free Stein thinning: Gaussian proxy'),
-    (idx_gf_kde, 'Gradient-free Stein thinning: KDE proxy'),
-    (idx_gf_wkde, 'Gradient-free Stein thinning: weighted KDE proxy'),
-    (idx_gf_laplace, 'Gradient-free Stein thinning: Laplace proxy'),
+    (idx_gf, 'Gradient-free Stein thinning: simple Gaussian'),
+    (idx_gf_kde, 'Gradient-free Stein thinning: KDE'),
+    (idx_gf_wkde, 'Gradient-free Stein thinning: weighted KDE'),
+    (idx_gf_laplace, 'Gradient-free Stein thinning: Laplace approximation'),
 ]
 
 
@@ -340,11 +340,11 @@ for i, (idx, title) in enumerate(entries):
 
 # %%
 entries_report = [
-    (idx_naive, 'Naive thinning'),
+    (idx_naive, 'Naïve thinning'),
     (idx_st, 'Stein thinning'),
-    (idx_gf, 'Gradient-free Stein thinning: simple Gaussian proxy'),
-    (idx_gf_kde, 'Gradient-free Stein thinning: KDE proxy'),
-    (idx_gf_laplace, 'Gradient-free Stein thinning: Laplace proxy'),
+    (idx_gf, 'Gradient-free Stein thinning: simple Gaussian'),
+    (idx_gf_kde, 'Gradient-free Stein thinning: KDE'),
+    (idx_gf_laplace, 'Gradient-free Stein thinning: Laplace approximation'),
 ]
 
 # %%
@@ -393,8 +393,8 @@ naive_st = [np.sqrt(dcor.energy_distance(sample[naive_thin(sample.shape[0], n)],
 # %%
 entries_ed = [
     (idx_st, 'Stein'),
-    (idx_gf, 'Gradient-free: simple Gaussian proxy'),
-    (idx_gf_kde, 'Gradient-free: KDE proxy'),
+    (idx_gf, 'Gradient-free: simple Gaussian'),
+    (idx_gf_kde, 'Gradient-free: KDE'),
 ]
 
 # %%
@@ -406,7 +406,7 @@ ed_vals = [
 
 # %%
 fig, ax = plt.subplots(constrained_layout=True)
-ax.plot(naive_st, label='Naive');
+ax.plot(naive_st, label='Naïve');
 for i, entry in enumerate(entries_ed):
     ax.plot(ed_vals[i], label=entry[1]);
 ax.set_yscale('log');
@@ -501,11 +501,11 @@ vmax = np.max(vals)
 fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True);
 
 scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=log_q_laplace - log_p, vmin=vmin, vmax=vmax);
-axs[0].set_title('Laplace proxy');
+axs[0].set_title('Laplace approximation');
 fig.colorbar(scatter, ax=axs[0]);
 
 scatter = axs[1].scatter(sample[:, 0], sample[:, 1], c=log_q - log_p, vmin=vmin, vmax=vmax);
-axs[1].set_title('Simple Gaussian proxy');
+axs[1].set_title('Simple Gaussian');
 fig.colorbar(scatter, ax=axs[1]);
 
 fig.savefig(figures_path / 'gaussian-mixture-laplace-proxy.pdf');

@@ -9,7 +9,7 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{todonotes}
 \usepackage{mathtools}
-\usepackage{algorithm2e}
+\usepackage[ruled]{algorithm2e}
 \usepackage{graphicx}
 \usepackage{svg}
 \usepackage{tabularx}
@@ -75,7 +75,7 @@ United Kingdom\\
 
 \chapter*{Abstract}
 
-The dissertations reports the results of implementing the gradient-free kernel Stein discrepancy of \cite{fisherGradientFreeKernelStein2024} within the Stein thinning algorithm by \cite{riabizOptimalThinningMCMC2022}. We evaluate the performance of the proposed algorithm using samples from a Gaussian mixture and the Lotka-Volterra inference problem. The results confirm the feasibility of the proposed algorithm and highlight its primary limitation: the reliance on the auxiliary proxy distribution that needs to be provided by the user.
+The dissertation reports the results of implementing the gradient-free kernel Stein discrepancy of \cite{fisherGradientFreeKernelStein2024} within the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022}. We evaluate the performance of the proposed algorithm on a Gaussian mixture target distribution and in a Bayesian inverse problem for the Lotka-Volterra model. The results confirm the feasibility of the proposed algorithm and highlight the primary challenge in its practical application: the requirement for an auxiliary distribution to be provided by the user.
 
 
 \tableofcontents
@@ -83,11 +83,11 @@ The dissertations reports the results of implementing the gradient-free kernel S
 
 \chapter*{Introduction}
 
-The Stein thinning algorithm was recently proposed by \cite{riabizOptimalThinningMCMC2022} to address the problem of selecting a subsample from Markov Chain Monte Carlo (MCMC) output for further expensive processing. The algorithm relies on the kernel Stein discrepancy (KSD), whose calculation involves the gradients of the log-target distribution. The requirement to provide the gradients imposes a significant computational cost on the practitioner attempting to use it for non-trivial distributions, in particular those defined implicitly as posteriors in Bayesian inverse problems. \cite{fisherGradientFreeKernelStein2024} develop a way around this challenge by formulating a gradient-free version of KSD, but stop short of attempting to apply it to the thinning problem.
+The Stein thinning algorithm was recently proposed by \cite{riabizOptimalThinningMCMC2022} to address the problem of selecting a subsample from Markov Chain Monte Carlo (MCMC) output for further expensive processing. The algorithm relies on the kernel Stein discrepancy (KSD), whose calculation involves the gradients of the log-target distribution. The requirement to provide the gradients imposes a significant computational cost on the practitioner attempting to use it for non-trivial distributions, in particular those defined implicitly as posteriors in Bayesian inverse problems. \cite{fisherGradientFreeKernelStein2024} developed a way around this challenge by formulating a gradient-free version of KSD, which the authors applied in the context of importance sampling and variational inference.
 
-We adopt the proposal of \cite{fisherGradientFreeKernelStein2024} to implement a gradient-free version of the original Stein thinning algorithm, and evaluate the newly developed algorithm on simple but illustrative cases of the Gaussian mixture and the Lotka-Volterra inverse problem, demonstrating the feasibility of the algorithm, as well as its limitations.
+We adopt the proposal of \cite{fisherGradientFreeKernelStein2024} to implement a gradient-free version of the original Stein thinning algorithm, and evaluate the newly developed algorithm on simple but illustrative cases of the Gaussian mixture and Bayesian inference for the parameters of the Lotka-Volterra inverse problem, demonstrating the feasibility of the algorithm, and highlighting practical challenges for its application.
 
-The report is structured as follows. Chapter~\ref{ch:background} reviews MCMC methods, and highlights the challenges of applying MCMC to practical problems. It proceeds to explain how the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} offers a solution for retrospective burn-in removal and compression of samples. The approach by \cite{fisherGradientFreeKernelStein2024} is then introduced. Chapter~\ref{ch:methodology} describes our computational experiments aiming to evaluate the approach by \cite{fisherGradientFreeKernelStein2024} in the context of thinning. Finally, Chapter~\ref{ch:conclusions} summarises the finding of the experiments and provides ideas for further research. Additional derivations and figures are included in the Appendices.
+The report is structured as follows. Chapter~\ref{ch:background} reviews MCMC methods, and highlights the challenges of applying MCMC to practical problems. It proceeds to explain how the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} offers a solution for retrospective bias removal and compression of samples. The gradient-free KSD of \cite{fisherGradientFreeKernelStein2024} is then introduced. Chapter~\ref{ch:methodology} describes our proposed approach of implementing gradient-free Stein, supported by numerical experiments. Finally, Chapter~\ref{ch:conclusions} summarises the finding of the experiments and provides ideas for further research. Additional derivations and figures are included in the Appendices.
 
 The Python code accompanying this report can be found at:
 \begin{center}
@@ -99,6 +99,31 @@ The implementation of the gradient-free kernel Stein thinning was contributed by
 \url{https://github.com/wilson-ye-chen/stein_thinning}.
 \end{center}
 
+\chapter*{Notation}
+
+For a matrix $A$, we use use $A^T$ to denote the transpose of the matrix. The matrix $A^{1/2}$ is the square root of matrix $A$ if it satisfies $A^{1/2} A^{1/2} = A$. $A^{-1}$ is the inverse of matrix $A$, if it exists. $I$ stands for the identity matrix of an appropriate dimension.
+
+We use $\langle x, y \rangle$ to denote the scalar product of $x$ and $y$, and $\| x \|$ to denote the norm of $x$, i.e. $\| x \| = \sqrt{\langle x, x \rangle}$.
+
+\todo[inline]{Check if it's always the square root}
+
+For a function $f: \mathbb{R}^d \to \mathbb{R}$, $\nabla f(x)$ denotes the gradient of $f(x)$ given by the vector
+\begin{equation*}
+\nabla f(x) \coloneq \left( \frac{\partial f(x)}{\partial x_1}, \dots, \frac{\partial f(x)}{\partial x_d} \right)^T,
+\end{equation*}
+where $x_i$ are the components of $x$ for $i \in \{1, \dots, d\}$.
+For a function of two arguments $f(x, y): \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$, we define the gradient w.r.t.\ to each argument:
+\begin{equation*}
+\begin{aligned}
+\nabla_x f(x, y) &\coloneq \left(\frac{\partial f(x, y)}{\partial x_1}, \dots, \frac{\partial f(x, y)}{\partial x_d}\right)^T, \\
+\nabla_y f(x, y) &\coloneq \left(\frac{\partial f(x, y)}{\partial y_1}, \dots, \frac{\partial f(x, y)}{\partial y_d}\right)^T, \\
+\end{aligned}
+\end{equation*}
+where $x_i$ and $y_i$ are the components of $x$ and $y$, respectively, for $i \in \{1, \dots, d\}$. The divergence operator $\nabla_x \cdot \nabla_y$ is then defined as
+\begin{equation*}
+(\nabla_x \cdot \nabla_y) f(x,y) \coloneq \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} f(x, y).
+\end{equation*}
+
 \chapter{Background}
 \label{ch:background}
 
@@ -106,13 +131,13 @@ The implementation of the gradient-free kernel Stein thinning was contributed by
 
 Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling from complex probability distributions.
 
-The need to sample from a probability distribution arises in exploratory analysis as well as when analytical expressions are unavailable for quantities of interest, such as the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a numerical simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
+The need to sample from a probability distribution arises in exploratory analysis as well as when analytical expressions are unavailable for quantities of interest, such as the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a Monte Carlo simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
 
-In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. Typically though, the complexity of the target distribution and the dimensionality of the parameter space render the simple methods infeasible or inefficient. Randomised algorithms, such as MCMC, have arisen to address the ensuing challenge.
+In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. In many cases, however, the complexity of the target distribution and the dimensionality of the parameter space render the simple methods infeasible or inefficient. The class of MCMC algorithms has arisen to address the challenge\todo{Mention what makes MCMC different from the other methods}.
 
 \todo[inline]{Describe alternatives: accept-reject and importance sampling}
 
-An MCMC algorithm proceeds by sequentially constructing a chain of samples\footnote{These are also sometimes called ``draws''. In this report, we follow the literature in using the term ``sample'' both for a single element in an MCMC chain and for all such elements taken together as a sample from the target distribution.} $x_1$, $x_2$, $\dots$,  where each sample is drawn from a transition distribution $Q$ conditional on the preceding value:
+An MCMC algorithm proceeds by sequentially constructing a chain of samples\footnote{These are also sometimes called ``draws''. In this report, we follow the literature in using the term ``sample'' both for a single element in an MCMC chain and for all such elements taken together as a sample from the target distribution.} $x_1$, $x_2$, $\dots$,  where each sample is drawn from a Markov transition kernel $Q$ conditional on the preceding value:
 $$x_{n+1} \sim Q(x_{n+1}|x_n).$$
 The distribution $Q$ is known as the transition kernel and is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $\Pi$:
 $$x_n \xrightarrow[]{d} \Pi \quad\text{as}\quad n \to \infty.$$
@@ -130,8 +155,8 @@ If $x'$ is accepted, the algorithm sets $x_{n+1} = x'$. If $x'$ is rejected, the
 The common choice for the proposal distribution $q$ is a symmetric proposal satisfying $q(x'|x_n) = q(x_n|x')$, so that the ratio of these two quantities disappears from the expression for the acceptance probability:
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)}.$$
 In the special case where $q(x'|x_n) = q(x' - x_n)$ we obtain a random walk proposal:
-$$x' = x_n + Z,$$
-where $Z$ is the distribution of the step taken by the algorithm, e.g. a multivariate normal distribution. The operation of the algorithm then resembles a random walk across the domain of the target distribution where steps towards areas of lower probability are more likely to be rejected. The scale of the step distribution $Z$ determines the average size of the jump that the algorithm can make in one iteration and thus the speed of traversal of the target domain.
+$$x' = x_n + z,$$
+where the step $z$ is sampled from the proposal distribution of the algorithm, such as the multivariate normal distribution. The operation of the algorithm then resembles a random walk across the domain of the target distribution where steps towards areas of lower probability are more likely to be rejected. The scale of the step distribution determines the average size of the jump that the algorithm can make at each iteration and thus the speed of traversal of the target domain.
 
 An alternative to symmetric proposals is an independence proposal satisfying $q(x'|x_n) = q(x')$.
 
@@ -153,31 +178,32 @@ Development of general-purpose and specialised MCMC algorithms remains an active
 
 \section{Challenges of running MCMC}
 
-While the asymptotic convergence of MCMC samples to the target distribution is guaranteed, no general guarantee is available for finite samples, resulting in several interrelated challenges that a practitioner faces when applying this class of algorithms:
+While the asymptotic convergence of MCMC samples to the target distribution is guaranteed, no general guarantee is available for finite samples\todo{Consider adding a reference}, resulting in several interrelated challenges that a practitioner faces when applying this class of algorithms:
 \begin{enumerate}
 \item The choice of a starting point for a chain affects the speed of convergence to the target distribution.
 \item For a multimodal distribution, the algorithm might struggle to move between the modes within a feasible time. This problem becomes especially acute in high dimensions.
 \item The scale of the proposal distribution must be calibrated to ensure that the algorithm is able to explore the domain of the target distribution efficiently.
 \item Assessing how close an MCMC chain is to convergence is difficult, since the knowledge about the target distribution often comes from the chain itself.
 \item In order to eliminate the impact of the starting point, it can be useful to discard the initial iterations of an MCMC chain, which are considered as ``burn-in''. Selecting the optimal length of the burn-in period is contingent on being able to detect convergence.
-\item The sequential procedure of constructing a chain induces autocorrelation between the samples, which leads to increased variance of derived estimators.
-\item The large number of samples resulting from an MCMC algorithm needs to be summarised for subsequent analysis, particularly when the cost of using all available samples is too high. Such situations arise when samples obtained from MCMC are used as starting points for further expensive simulations.
+\item The sequential procedure of constructing a chain introduces autocorrelation between the samples, which leads to increased variance of resulting estimators.
+\item The large number of samples resulting from an MCMC algorithm might need to be summarised for subsequent analysis, particularly when the cost of using all available samples is too high. Such situations arise when samples obtained from MCMC are used as starting points for further expensive simulations.
 \end{enumerate}
 
 The first three challenges require decisions to be made upfront before running the algorithm or adaptively during its run. In order to address the impact of the starting point, running multiple chains with starting points sampled from an overdispersed distribution is recommended~(\cite{gelmanInferenceIterativeSimulation1992}). This approach has the added benefit of increasing the chance of discovering the modes of the target distribution, although it does not provide a guarantee in this respect. 
 \todo[inline]{Mention perfect sampling.}
 
-Comparing the summary statistics of several chains (\cite{gelmanInferenceIterativeSimulation1992,brooksGeneralMethodsMonitoring1998,vehtariRankNormalizationFoldingLocalization2021}) offers a way to detect a lack of convergence at the cost of additional computation. Alternatively, the comparison can be applied to batches of samples from a single chain, as proposed by \cite{vatsRevisitingGelmanRubin2021}. Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied, or to assess the quality of a sample retrospectively. It should be noted that convergence criteria establish a necessary but not sufficient condition for convergence, so the outcomes need to be interpreted accordingly.
+The scaling of the step distribution in the random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly 0.234 for proposed samples (\cite{gelmanEfficientMetropolisJumping1996,gelmanWeakConvergenceOptimal1997,robertsOptimalScalingVarious2001}), which balances the speed of traversal and the computational effort generating samples that end up rejected.
 
-The scaling of the step distribution in a random-walk Metropolis-Hastings algorithm is commonly tuned to target the acceptance rate of roughly 0.234 for proposed samples (\cite{gelmanEfficientMetropolisJumping1996,gelmanWeakConvergenceOptimal1997,robertsOptimalScalingVarious2001}), which balances the speed of traversal and the computational effort generating samples that end up rejected.
+Comparing the summary statistics of several chains (\cite{gelmanInferenceIterativeSimulation1992,brooksGeneralMethodsMonitoring1998,vehtariRankNormalizationFoldingLocalization2021}) offers a way to detect a lack of convergence at the cost of additional computation. Alternatively, the comparison can be applied to batches of samples from a single chain, as proposed by \cite{vatsRevisitingGelmanRubin2021}. Convergence detection can be used to terminate the algorithm once a chosen criterion is satisfied. It should be noted that convergence criteria establish a necessary but not sufficient condition for convergence, so the outcomes need to be interpreted accordingly.
 
-The last three challenges are typically addressed by post-processing a sample from a completed MCMC run. A recent proposal by~\cite{riabizOptimalThinningMCMC2022} addresses these challenges by selecting a fixed-size subset of samples from an MCMC run such that the empirical distribution given by the subset best approximates the distribution resulting from the full sample. In the following section, we consider their approach in greater detail.
+The last three challenges are typically addressed by post-processing a sample from a completed MCMC run. A recent proposal by~\cite{riabizOptimalThinningMCMC2022} addresses these challenges by selecting a fixed-size subset of samples from an MCMC run such that the empirical distribution given by the subset best approximates the target distribution. In the following section, we consider their approach in greater detail.
 
 \todo[inline]{Read and cite Cowles and Carlin (1996) regarding the choice of burn-in length.}
 
-\section{Optimal thinning}
+\section{Stein thinning}
+\label{sec:stein-thinning}
 
-Given a Markov chain $(X_i)_{i \in \mathbb{N}}$ and its realisation $(x_i)_{i=1}^n$ of length $n$, the empirical approximation of the target posterior distribution is given by
+Given MCMC output $(x_i)_{i=1}^n$ of length $n$, the empirical approximation of the target posterior distribution is given by
 \begin{equation}
 \frac{1}{n} \sum_{i=1}^n \delta(x_i),
 \label{eq:discrete-distribution}
@@ -190,20 +216,14 @@ where $\delta(x)$ is the Dirac delta function.
 \end{equation}
 is closest to the target distribution. The criterion of proximity is based on the kernel Stein discrepancy, itself a special case of the integral probability metric.
 
-\subsection{Kernel Stein discrepancy}
-
-The integral probability metric between two distributions $P$ and $P'$ is defined as
+The integral probability metric\todo{Add reference.} between two distributions $P$ and $P'$ is defined as
 \begin{equation}
 \mathcal{D}_{\mathcal{F}}(P, P') \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff P' \right|,
 \label{eq:ipm}
 \end{equation}
 where $\mathcal{X}$ is a measurable space on which both $P$ and $P'$ are defined and $\mathcal{F}$ is a set of test functions. Depending on the choice of $\mathcal{F}$, the definition~(\ref{eq:ipm}) gives rise to different classes of probability metrics, including the well-known Kolmogorov distance, Wasserstein distance and total variation distance.
 
-If $P$ is taken to be the target distribution of an MCMC algorithm, evaluating~(\ref{eq:ipm}) poses two practical challenges:
-\begin{itemize}
-\item the integral $\int_\mathcal{X} f \diff P$ is often analytically intractable,
-\item the supremum requires a non-trivial optimisation procedure to find.
-\end{itemize}
+If $P$ is taken to be the target distribution of an MCMC algorithm, evaluating~(\ref{eq:ipm}) poses two practical challenges: the integral $\int_\mathcal{X} f \diff P$ is often analytically intractable, and the supremum requires a non-trivial optimisation procedure to find.
 
 The need to integrate with respect to $P$ can be eliminated if we find a set of function $\mathcal{F}$ for which $\int_\mathcal{X} f \diff P = 0$ for all $f \in \mathcal{F}$. The expression~(\ref{eq:ipm}) then simplifies to
 \begin{equation}
@@ -212,24 +232,27 @@ The need to integrate with respect to $P$ can be eliminated if we find a set of 
 \end{equation}
 
 \cite{gorhamMeasuringSampleQuality2015} propose choosing such a set $\mathcal{F}$ based on the observation that the infinitesimal generator
-$$(\mathcal{L}u)(x) = \lim_{t \to 0} \frac{\mathbb{E}[u(Z_t) | Z_0 = x] - u(x)}{t} \quad \text{for } u:\mathbb{R}^d \to \mathbb{R}$$
+$$(\mathcal{L}u)(x) \coloneq \lim_{t \to 0} \frac{\mathbb{E}[u(Z_t) | Z_0 = x] - u(x)}{t} \quad \text{for } u:\mathbb{R}^d \to \mathbb{R}$$
 of a Markov process $(Z_t)_{t \geq 0}$ with stationary distribution $P$ satisfies 
-$$\mathbb{E}[(\mathcal{L} u)(Z)] = 0$$
-under mild conditions on $\mathcal{L}$ and $u$\todo[inline]{Check the conditions.}. In the specific case of an overdamped Langevin diffusion
+\begin{equation}
+\mathbb{E}[(\mathcal{L} u)(Z)] = 0
+\label{eq:infinitesimal:property}
+\end{equation}
+under mild conditions on $\mathcal{L}$ and $u$\todo{Check the conditions.}. In the specific case of an overdamped Langevin diffusion
 $$\diff Z_t = \frac{1}{2} \nabla \log p(Z_t) \diff t + \diff W_t,$$
 where $W_t$ is the standard Brownian motion, the infinitesimal generator becomes
 $$(\mathcal{L}_P u)(x) = \frac{1}{2} \langle \nabla u(x), \nabla \log p(x)\rangle + \frac{1}{2}\langle \nabla, \nabla u(x) \rangle.$$
 Denoting $g  = \frac{1}{2}\nabla u$, they obtain the Stein operator
 \begin{equation}
-\mathcal{A}_P g = \langle g, \nabla \log p \rangle + \langle \nabla, g \rangle = \langle p^{-1}\nabla, p g \rangle,
+\mathcal{A}_P g \coloneq \langle g, \nabla \log p \rangle + \langle \nabla, g \rangle = \langle p^{-1}\nabla, p g \rangle,
 \label{eq:stein-operator}
 \end{equation}
-and rewrite~(\ref{eq:stein-discrepancy-sup}) as
+and rewrite~(\ref{eq:stein-discrepancy-sup}) via~(\ref{eq:infinitesimal:property}) as
 \begin{equation}
 \mathcal{D}_{P, \mathcal{G}}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff P' \right|
 \label{eq:stein-discrepancy-g}
 \end{equation}
-for a suitably chosen set $\mathcal{G}$. Note that $p$ enters~(\ref{eq:stein-operator}) via $\nabla \log p$, so the knowledge of its normalising constant is not required to evaluate the operator.
+for a suitably chosen set $\mathcal{G}$. Since $p$ only appears in~(\ref{eq:stein-operator}) through $\nabla \log p$, the normalising constant of $p$ is not required to evaluate $\mathcal{D}_{P, \mathcal{G}}(P')$: for any constant $c > 0$ we have $\nabla \log (c p(x)) = \nabla \log p(x)$.
 
 To remove the optimisation step in the calculation of~(\ref{eq:stein-discrepancy-g}), \cite{gorhamMeasuringSampleQuality2017} employ a reproducing kernel Hilbert space (RKHS) $\mathcal{H}(k)$ with kernel $k: \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$ satisfying the reproducing property:
 $$f(x) = \langle f, k(x, \cdot)\rangle \quad\text{for } f \in \mathcal{H}(k).$$
@@ -240,10 +263,10 @@ Taking the set
 \end{equation}
 which defines a unit-ball in a Cartesian product of $d$ copies $\mathcal{H}(k)$, Proposition~2 in \cite{gorhamMeasuringSampleQuality2017} establishes that
 \begin{equation}
-\mathcal{D}_{P}^2(P') = \mathbb{E}_{P' \times P'}[k_P(X, \tilde{X})] = \iint_\mathcal{X} k_P(x, y) \diff p'(x) \diff p'(y),
+\mathcal{D}_{P}^2(P') \coloneq = \mathcal{D}_{P, \mathcal{G}}(P') = \iint_\mathcal{X} k_P(x, y) \diff p'(x) \diff p'(y),
 \label{eq:stein-discrepancy-sqrt-expectation}
 \end{equation}
-where $X, \tilde{X} \sim P'$, $p'$ is the density of $P'$, and $k_P(x, y)$ is given by
+where $p'$ is the density of $P'$, and $k_P(x, y)$ is given by
 \begin{equation}
 \begin{aligned}
 k_P(x, y) \coloneq 
@@ -253,41 +276,33 @@ k_P(x, y) \coloneq
 \label{eq:deriv:stein-kernel}
 \end{aligned}
 \end{equation}
-Here $\nabla_x$ and $\nabla_y$ are gradients w.r.t.\ $x$ and $y$, respectively, and the operator $\nabla_x\cdot\nabla_y$ is defined as:
-$$(\nabla_x\cdot\nabla_y) k(x,y) \coloneq \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} k(x, y).$$
-Note that we have dropped $\mathcal{G}$ in the subscript of~(\ref{eq:stein-discrepancy-sqrt-expectation}) as the choice of $\mathcal{G}$ does not depend on $P$ or $P'$.
 If $P'$ is a discrete distribution, as in~(\ref{eq:discrete-distribution}), the squared discrepancy~(\ref{eq:stein-discrepancy-sqrt-expectation}) becomes
 \begin{equation}
-\mathcal{D}_{P}^2\left(\frac{1}{n} \sum_{i=1}^n \delta(x_i)\right) = \frac{1}{n^2} \sum_{i,j=1}^n k_P(x_i, x_j).
+\mathcal{D}_{P}^2\left(\frac{1}{n} \sum_{i=1}^n \delta(x_i)\right) = \frac{1}{n^2} \sum_{i,j=1}^n k_P(x_i, x_j),
 \label{eq:ksd:discrete}
 \end{equation}
+i.e.\ the average of the elements in the Gram matrix of $k_P(x_i, x_j)$, which is straightforward to compute.
 
 When $k(x, y)$ is chosen to be the inverse multiquadratic kernel (IMQ)
 \begin{equation}
 k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta
 \label{eq:imq}
 \end{equation}
-with $\beta \in (-1, 0)$ and $\Gamma = I$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{P}(P')$ provides convergence control:
-\begin{itemize}
-\item if $\mathcal{D}_{P}(P'_m) \to 0$, then $P'_m$ converges in distribution to $P$ (Theorem 8),
-\item if $P'_m$ converges to $P$ in Wasserstein distance, then $\mathcal{D}_{P}(P'_m) \to 0$ (Proposition 9)
-\end{itemize}
-for a sequence of distributions $P'_m$ under suitable conditions. Theorem 4 by \cite{chenSteinPointMarkov2019} justifies the introduction of $\Gamma$ in IMQ.
+with $\beta \in (-1, 0)$ and $\Gamma = I$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{P}(P')$ provides convergence control: if $\mathcal{D}_{P}(P'_m) \to 0$, then $P'_m$ converges in distribution to $P$ for a sequence of distributions $P'_m$ under suitable conditions (Theorem 8). Theorem 4 by \cite{chenSteinPointMarkov2019} justifies the introduction of $\Gamma$ in IMQ.
 
-The constant $c$ in~(\ref{eq:imq}) can be set to 1 without loss of generality, and the positive-definite preconditioner matrix $\Gamma$ can be chosen to exploit the geometry of the parameter space. \cite{riabizOptimalThinningMCMC2022} suggest several choices for $\Gamma$, in particular the identity matrix scaled by the median Euclidean distance between points in the sample, possibly further rescaled by $(\log m)^{-1/2}$ where $m$ is the desired cardinality of the thinned sample, or the sample covariance matrix. Based on empirical evaluation, \cite{gorhamMeasuringSampleQuality2017} and \cite{riabizOptimalThinningMCMC2022} settle on the value $\beta = -\frac12$.
+\todo[inline]{Check why it's not obvious that $\Gamma$ can be introduced.}
 
-The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in Appendix~\ref{appendix:derivations:imq-stein} and is coded directly in the Python library \texttt{stein-thinning}\footnote{Available from \url{https://github.com/wilson-ye-chen/stein_thinning}.}.
+The hyperparameters $c$, $\Gamma$ and $\beta$ need to be provided by the user. The constant $c$ in~(\ref{eq:imq}) can be set to 1 without loss of generality, and the positive-definite preconditioner matrix $\Gamma$ can be chosen to exploit the geometry of the parameter space. \cite{riabizOptimalThinningMCMC2022} suggest several choices for $\Gamma$, in particular the identity matrix scaled by the median Euclidean distance between points in the sample, possibly further rescaled by $(\log m)^{-1/2}$ where $m$ is the desired cardinality of the thinned sample, or the sample covariance matrix. Based on empirical evaluation, \cite{gorhamMeasuringSampleQuality2017} and \cite{riabizOptimalThinningMCMC2022} settle on the value $\beta = -\frac12$.
+
+The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in Appendix~\ref{appendix:derivations:imq-stein}.
 
 Other choices of kernels are possible and offer convergence control, as demonstrated by \cite{chenSteinPoints2018}, however IMQ performed on par or better than the alternatives considered by the authors.
 
-\subsection{Stein thinning}
-\label{sec:stein-thinning}
-
 Equipped with the kernel Stein discrepancy (KSD) as defined above, \cite{riabizOptimalThinningMCMC2022} develop a greedy optimisation algorithm to select a subset of points from a sample that minimises the total kernel Stein discrepancy. Rather than attempting to evaluate KSD for all $n \choose m$ combinations of points, they construct a subsample iteratively, each time picking a point that minimises the KSD with previously selected points. We reproduce their procedure verbatim in Algorithm~\ref{alg:cap} for the reader's convenience. 
 
-\begin{algorithm}
+\begin{algorithm}[t]
 \caption{Stein thinning.}\label{alg:cap}
-\KwData{Sample $(x_i)_{i=1}^n$ from MCMC, Stein kernel $k_P$, desired cardinality $m \in \mathbb{N}$.}
+\KwData{Sample $(x_i)_{i=1}^n$ from MCMC, desired cardinality $m \in \mathbb{N}$.}
 \KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m \subset \{x_i\}_{i=1}^n$ where $\pi(j) \in \{1, \dots, n\}$.}
 
 \For{$j = 1, \dots, m$}{
@@ -295,11 +310,11 @@ $$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k
 }
 \end{algorithm}
 
-The algorithm was implemented by the authors and made available in the open-source library \texttt{stein-thinning}. The computational complexity of the provided implementation is $O(nm)$, allowing the algorithm to be used for large $n$ when $m$ is fixed.
+The algorithm was implemented by the authors and made available in the open-source library \texttt{stein-thinning}. The computational complexity of the provided implementation is $O(nm^2)$, allowing the algorithm to be used for large $n$ when $m$ is fixed.
 
 The strength of the method lies in its ability to correct for bias in the input sample, as established by Theorem 3 in \cite{riabizOptimalThinningMCMC2022}, meaning that the algorithm can be applied to samples from MCMC chains that have not converged to the target distribution, provided that its domain is sufficiently explored by the chains. The limitation of the method comes from its reliance on the gradients of the log-target, which may be expensive to compute.
 
-\subsection{Gradient-free kernel Stein discrepancy}
+\section{Gradient-free kernel Stein discrepancy}
 
 \todo[inline]{Cite cases where gradient cannot be computed easily.}
 
@@ -307,17 +322,17 @@ To address the limitation of the kernel Stein discrepancy, \cite{fisherGradientF
 \begin{equation}
 \mathcal{S}_{P,Q} g \coloneq \frac{q}{p}(\langle g, \nabla \log q \rangle + \langle \nabla, g \rangle) = \frac{q}{p} \langle q^{-1}\nabla, q g \rangle.
 \end{equation}
-This definition generalises expression~(\ref{eq:stein-operator}) by introducing a proxy distribution $Q$ with density $q$ chosen such that its gradient is easily computable. When $q = p$, we recover the original Langevin Stein operator~(\ref{eq:stein-operator}).
+This definition generalises expression~(\ref{eq:stein-operator}) by introducing an auxiliary distribution $Q$ with density $q$ chosen such that its gradient is easily computable. When $q = p$, we recover the original Langevin Stein operator~(\ref{eq:stein-operator}).
 
 \cite{fisherGradientFreeKernelStein2024} proceed to show in their Proposition 1 that, under certain regularity conditions,
 \begin{equation*}
 \int_\mathcal{X} \mathcal{S}_{P,Q} g \diff P = 0
 \end{equation*}
-for any function $g$ whose first derivatives exist and are bounded, allowing them to define the gradient-free kernel Stein discrepancy
+for any function $g$ whose first derivatives exist and are bounded, allowing them to define the gradient-free Stein discrepancy
 \begin{equation*}
 \mathcal{D}_{P, Q}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{S}_{P,Q} g \diff P' \right|
 \end{equation*}
-by analogy with~(\ref{eq:stein-discrepancy-g}), taking $\mathcal{G}$ again to be the unit-ball~(\ref{eq:unit-ball}). Futhermore, Proposition 7 in \cite{fisherGradientFreeKernelStein2024} establishes that
+by analogy with~(\ref{eq:stein-discrepancy-g}). Taking $\mathcal{G}$ again to be the unit-ball~(\ref{eq:unit-ball}), Proposition 7 in \cite{fisherGradientFreeKernelStein2024} establishes that
 \begin{equation*}
 \mathcal{D}_{P, Q}^2(P') = \iint_\mathcal{X} \frac{q(x)}{p(x)} \frac{q(y)}{p(y)} k_Q(x, y) \diff p'(x) \diff p'(y),
 \label{eq:gf-ksd:int}
@@ -328,50 +343,61 @@ where $p'$ is the density of distribution $P'$ and $k_Q(x, y)$ is given by~(\ref
 \label{eq:gf-ksd:discrete}
 \end{equation}
 
-Both expression~(\ref{eq:ksd:discrete}) and~(\ref{eq:gf-ksd:discrete}) can be viewed as averaging the elements of matrices, and this fact is used to provide an efficient implementation of the greedy search described in Section~\ref{sec:stein-thinning}.
+As with~(\ref{eq:ksd:discrete}), expression~(\ref{eq:gf-ksd:discrete}) represents the average the elements of a Gram matrix, and this fact can be exploited to provide an efficient implementation of the greedy search described in Section~\ref{sec:stein-thinning}.
 
-When $k_Q(x,y)$ is based on IMQ with $\Gamma = I$, Theorem 2 in \cite{fisherGradientFreeKernelStein2024} asserts convergence control: $\mathcal{D}_{P, Q}^2(P_m') \to 0$ implies that the sequence of distributions $P'_m$ converges weakly to $P$ as $m \to \infty$. 
+When $k_Q(x,y)$ is based on IMQ with $\Gamma = I$, Theorem 2 in \cite{fisherGradientFreeKernelStein2024} asserts convergence control under regularity conditions on $Q$: $\mathcal{D}_{P, Q}^2(P_m') \to 0$ implies that the sequence of distributions $P'_m$ converges weakly to $P$ as $m \to \infty$. 
 
-While removing the need to calculate the gradient of log-target, the approach by \cite{fisherGradientFreeKernelStein2024} replaces it with the requirement to choose a suitable proxy distribution $Q$. The authors provide several examples:
+While removing the need to calculate the gradient of log-target, the approach by \cite{fisherGradientFreeKernelStein2024} replaces it with the requirement to choose a suitable auxiliary distribution $Q$. The authors provide several examples:
 \begin{itemize}
 \item where the target distribution is the posterior in a Bayesian inference problem, the prior distribution can serve as $Q$,
 \item where $p$ can be differentiated, the Laplace approximation of $P$ could be used,
 \item where samples from $P$ are available, it can be approximated by either the Gaussian mixture model (GMM) or a kernel density estimator (KDE).
 \end{itemize}
 
-The choice of a proxy is non-trivial, and \cite{fisherGradientFreeKernelStein2024} warn of possible failure of convergence control when the proxy density $q$ has either a substantially heavier or a substantially lighter tail than $p$. Two other situations are identified by the authors as detrimental to their approach: high dimension of the domain $\mathcal{X}$ and well separated high-probability regions.
+The choice of an auxiliary distribution $Q$ is non-trivial, and \cite{fisherGradientFreeKernelStein2024} warn of possible failure of convergence control when the density of $Q$ has either a substantially heavier or a substantially lighter tail than $p$. Two other situations are identified by the authors as detrimental to their approach: high dimension of the domain $\mathcal{X}$ and well separated high-probability regions.
 
 In their paper, \cite{fisherGradientFreeKernelStein2024} apply gradient-free KSD for importance resampling and variational inference problems. In what follows, we adopt their approach for the thinning problem.
 
 \chapter{Methodology and Results}
 \label{ch:methodology}
 
-We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$. With the inverse multiquadratic kernel~(\ref{eq:imq}), this results in the expression
-\begin{equation*}
+\section{Gradient-free Stein thinning}
+
+We modify Algorithm~\ref{alg:cap} to use the gradient-free Stein kernel $k_{P,Q}(x,y)$ in place of $k_P(x, y)$, where
+\begin{equation}
 \begin{aligned}
 k_{P,Q}(x, y)
 = &\frac{q(x)}{p(x)} \frac{q(y)}{p(y)} \times \\
  &\left[ -4 \frac{\beta(\beta-1) \| \Gamma^{-1}(x - y)\|^2}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta-2}} \right.  \\
 &- 2 \beta \frac{\trace(\Gamma^{-1}) + \langle \Gamma^{-1} (x - y), \nabla_x \log q(x) - \nabla_y \log q(y)\rangle}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta-1}} \\
 & \left. + \frac{\langle \nabla_x \log q(x), \nabla_y \log q(y) \rangle}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta}} \right]. \\
-\end{aligned}
 \label{eq:k_Q}
-\end{equation*}
+\end{aligned}
+\end{equation}
+The resulting procedure is shown in Algorithm~\ref{alg:gf}. The implementation of Algorithm~\ref{alg:gf} is added directly to the Python library \texttt{stein-thinning} and is publicly available.
 
-The implementation is added directly to the publicly available Python library \texttt{stein-thinning}.
+\begin{algorithm}[t]
+\caption{Gradient-free Stein thinning.}\label{alg:gf}
+\KwData{Sample $(x_i)_{i=1}^n$ from MCMC, desired cardinality $m \in \mathbb{N}$.}
+\KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m \subset \{x_i\}_{i=1}^n$ where $\pi(j) \in \{1, \dots, n\}$.}
+
+\For{$j = 1, \dots, m$}{
+$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_{P,Q}(x_{\pi(j'}, x_i)$$
+}
+\end{algorithm}
 
 We proceed to compare the performance of the proposed algorithm against na\"ive thinning (retaining each $i$-th element of the sample) and the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for several target distributions. The outline of the evaluation procedure for each test case is as follows:
 \begin{enumerate}
 \item obtain a sample from the target distribution,
 \item apply na\"ive thinning, Stein thinning and the proposed algorithm to get a thinned sample of a given cardinality,
-\item calculate the energy distance between the thinned sample and the target distribution and compare the values across the algorithms.
+\item evaluate the result of thinning using an impartial metric.
 \end{enumerate}
 
-In order to assess how well the selected sample approximates the target distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $F$ and $G$ as
-$$D^2(F, G) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
-where $X, X' \sim F$, $Y, Y' \sim G$, and $\|\cdot\|$ denotes the Euclidean norm. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
+In order to assess how well the selected sample approximates the target distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $P$ and $Q$ as
+$$D^2(P, Q) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,$$
+where $X, X' \sim P$ and $Y, Y' \sim Q$. For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
 \begin{equation*}
-\mathcal{E}_{n,m}(X, Y) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.
+\mathcal{E}_{n,m}(P, Q) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.
 \label{eq:energy-distance:discrete}
 \end{equation*}
 
@@ -382,7 +408,7 @@ We use synthetic data in order to have control over the ground truth in our expe
 \section{Bivariate Gaussian mixture}
 \label{sec:gaussian-mixture}
 
-The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm under favourable conditions. Here we take the target distribution to be the bivariate Gaussian mixture with means 
+The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm under the favourable conditions of an i.i.d.\ sample. Here we take the target distribution to be the bivariate Gaussian mixture with means 
 $$
 \mu_1 = \begin{pmatrix} -1 \\ -1 \end{pmatrix}, \qquad
 \mu_2 = \begin{pmatrix} 1 \\ 1 \end{pmatrix},
@@ -413,14 +439,9 @@ and obtain 1000 samples by directly drawing from the target. A scatter plot of t
 
 \paragraph{Na\"ive thinning.} We select elements of the sample with uniformly-spaced indices.
 
-\paragraph{Stein thinning.} The gradients of the log-target required by the Stein thinning algorithm can be obtained analytically in this case. For multivariate normal distributions with density functions
-$$f_i(\mathbf{x}) = \frac{1}{(2\pi)^{d/2} |\Sigma_i|^{1/2}}\exp\left(-\frac{1}{2}(\mathbf{x} - \pmb{\mu}_i)^T \Sigma_i^{-1}(\mathbf{x}-\pmb{\mu}_i)\right),$$
-where $\mathbf{x} \in \mathbb{R}^d$, the mixture density with $k$ components is given by
-$$f(\mathbf{x}) = \sum_{i=1}^k w_i f_i(\mathbf{x}),$$
-thus the gradient of its log-density is obtained as
-$$\nabla_{\mathbf{x}} \log f(\mathbf{x}) = \frac{\sum_{i=1}^k w_i \nabla_{\mathbf{x}} f_i(\mathbf{x})}{\sum_{i=1}^k w_i f_i(\mathbf{x})} = -\frac{\sum_{i=1}^k w_i f_i(\mathbf{x}) \Sigma_i^{-1}(\mathbf{x} - \pmb{\mu}_i)}{\sum_{i=1}^k w_i f_i(\mathbf{x})}.$$
+\paragraph{Stein thinning.} The gradients of the log-target required by the Stein thinning algorithm can be obtained analytically in this case (see Appendix~\ref{appendix:derivations:gaussian-mixture-gradient}). 
 
-\paragraph{Gradient-free Stein thinning.} This approach requires us to select a proxy distribution. We consider several options:
+\paragraph{Gradient-free Stein thinning.} This approach requires us to select an auxiliary distribution. We consider several options:
 \begin{itemize}
 \item a bivariate Gaussian with the mean and covariance matrix matching the sample mean and covariance of the sample,
 \item a Laplace approximation of the target distribution,
@@ -429,7 +450,7 @@ $$\nabla_{\mathbf{x}} \log f(\mathbf{x}) = \frac{\sum_{i=1}^k w_i \nabla_{\mathb
 
 For the KDE estimator, we choose the Gaussian kernel with bandwidth selected according to Silverman's rule.
 
-The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplace proxy is striking, so we investigate it further. The other methods produce visually sensible results. One can notice some clustering of points selected by na\"ive thinning, whereas the Stein thinning and the gradient-free approach using the Gaussian proxy and the KDE proxy appear to spread points more evenly.
+The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplace approximation is striking, so we investigate it further. The other methods produce visually sensible results. One can notice some clustering of points selected by na\"ive thinning, whereas the Stein thinning and the gradient-free approach using the Gaussian auxiliary distribution and the KDE appear to spread points more evenly.
 
 \begin{figure}[h!]
 \centering
@@ -440,18 +461,18 @@ The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplac
 \label{fig:gmm:thinned}}
 \end{figure}
 
-To see why the Laplace approximation fails in this case, note the multiplier $q(x) / p(x)$ in~(\ref{eq:gf-ksd:discrete}). Since the thinning algorithm seeks to minimise the sum, it will tend to prefer elements with low values of $q(x) / p(x)$. In Figure~\ref{fig:gmm:laplace-failure}, we plot the values $\log q(x) - \log p(x) = \log (q(x) / p(x))$ for points in the sample. It is clear that the points in the lower left corner of the plot become very attractive for the algorithm to select due to their miniscule values of the multiplier $q(x) / p(x)$. The low ratio $q(x) / p(x)$ for those points is in turn due to the fact that the Laplace approximation picks the larger of the two modes in the mixture, so it cannot serve as a good proxy for the samples coming from the other component. By contract, the simple Gaussian proxy achieves more uniform values of the multiplier.
+To see why the Laplace approximation fails in this case, note the multiplier $q(x) / p(x)$ in~(\ref{eq:k_Q}). Since the thinning algorithm seeks to minimise the sum, it will tend to prefer elements with low values of $q(x) / p(x)$. In Figure~\ref{fig:gmm:laplace-failure}, we plot the values $\log q(x) - \log p(x) = \log (q(x) / p(x))$ for points in the sample. It is clear that the points in the lower left corner of the plot become very attractive for the algorithm to select due to their miniscule values of the multiplier $q(x) / p(x)$. The low ratio $q(x) / p(x)$ for those points is in turn due to the fact that the Laplace approximation picks the larger of the two modes in the mixture, so it cannot serve as a good auxiliary distribution for the samples coming from the other component. By contract, the simple Gaussian distribution achieves more uniform values of the multiplier.
 
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{gaussian-mixture-laplace-proxy.pdf}
 }
-\caption{The values of $\log q(x) - \log p(x)$ for the points in the Gaussian mixture sample under the Laplace proxy and the simple Gaussian proxy using the sample mean and covariance.
+\caption{The values of $\log q(x) - \log p(x)$ for the points in the Gaussian mixture sample under the Laplace approximation and the simple Gaussian using the sample mean and covariance.
 \label{fig:gmm:laplace-failure}}
 \end{figure}
 
-Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. We see that the gradient-free approach using the KDE proxy is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. The gradient-free approach using the simple Gaussian proxy proves inferior to the na\"ive approach.
+Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. We see that the gradient-free approach using the KDE is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. The gradient-free approach using the simple Gaussian approach proves inferior to the na\"ive approach.
 
 \begin{figure}[h]
 \centering
@@ -462,7 +483,7 @@ Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved b
 \label{fig:gmm:comparison}}
 \end{figure}
 
-We conclude that even in such a favourable setup, the performance of the gradient-free algorithm depends crucially on the choice of the proxy distribution.
+We conclude that even in such a favourable setup, the performance of the gradient-free algorithm depends crucially on the choice of the auxiliary distribution.
 
 \section{Lotka-Volterra inverse problem}
 \label{sec:lotka-volterra}
@@ -471,7 +492,7 @@ A more challenging case is presented by the inverse problem of parameter inferen
 
 \todo[inline]{Cite sources on inverse Bayesian problems.}
 
-The Lotka-Volterra model describes the evolution of an idealised ecosystem with two species: predator and prey. The predator population grows when prey is abundant, and the prey population shrinks when there are too many predators. Denoting the size of prey population by $u_1$, and the predator population by $u_2$, the model postulates the following dynamic:
+The Lotka-Volterra model describes the evolution of an idealised ecosystem with two species: predator and prey. The predator population grows while prey is abundant, and the prey population shrinks when there are too many predators. Denoting the size of prey population by $u_1$, and the predator population by $u_2$, the model postulates the following dynamic:
 %\begin{equation}
 %\begin{alignat*}{4}
 %\frac{\diff u_1}{u_1} & = ( &  \theta_1 & & - \theta_2 u_2 & ) & & \diff t \\
@@ -480,16 +501,16 @@ The Lotka-Volterra model describes the evolution of an idealised ecosystem with 
 %\end{equation}
 \begin{equation}
 \begin{aligned}
-\frac{\diff u_1}{u_1} & = ( \;\;\;\theta_1 - \theta_2 u_2 ) \diff t \\
-\frac{\diff u_2}{u_2} & = ( -\theta_3 + \theta_4 u_1 ) \diff t \\
+\frac{\diff u_1}{u_1} & = ( \theta_1 - \theta_2 u_2 ) \diff t, \\
+\frac{\diff u_2}{u_2} & = ( -\theta_3 + \theta_4 u_1 ) \diff t, \\
 \end{aligned}
 \label{eq:lotka-volterra}
 \end{equation}
-The resulting behaviour is driven by the four parameters $\theta_1, \dots, \theta_4$. It is convenient to denote the solution to this system as  $\mathbf{u}(t;\pmb{\theta}) = (u_1(t; \pmb{\theta}), u_2(t; \pmb{\theta}))^T$, where $\pmb{\theta}$ is the vector of parameter values $(\theta_1, \dots, \theta_4)^T$.
+with $\theta_1, \dots, \theta_4 > 0$. The resulting behaviour of the system is thus driven by the four parameters $\theta_1, \dots, \theta_4$. It is convenient to denote the solution to this system as  $u(t;\theta) = (u_1(t; \theta), u_2(t; \theta))^T$, where $\theta$ is the vector of parameter values $(\theta_1, \dots, \theta_4)^T$.
 
-If a realisation of $\mathbf{u}(t; \pmb{\theta})$ is observed for an interval $t \in [0, T]$ with $\pmb{\theta}$ unknown, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model of a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
+If a realisation of $u(t; \theta)$ is observed with noise for an interval $t \in [0, T]$ with $\theta$ unknown, one may wish to infer the values of the parameters that best describe the observed behaviour. In a practical setting, this corresponds to formulating a parametric model of a natural phenomenon and inferring the parameters of the model from the measurements of the phenomenon. We emulate this situation by fixing the true model, generating a realisation perturbed by noise and then attempting to recover the parameters of the true model from the realisation.
 
-We take $\mathbf{u}(t;\pmb{\theta}^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\pmb{\theta}^* = (0.67, 1.33, 1, 1)^T$ and initial value $\mathbf{u}(0; \pmb{\theta}^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / (N - 1)$ for $i \in \{0, N - 1\}$. Bivariate i.i.d.\ Gaussian noise $\pmb{\varepsilon}(t) \sim \mathcal{N}\left( \mathbf{0}, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $\mathbf{y}(t) = \mathbf{u}(t;\pmb{\theta}^*) + \pmb{\varepsilon}(t)$ as our observed data. Figure~\ref{fig:lotka-volterra:data} displays the values $\mathbf{y}(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
+We take $u(t;\theta^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\theta^* = (0.67, 1.33, 1, 1)^T$ and initial value $u(0; \theta^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / (N - 1)$ for $i \in \{0, N - 1\}$. Bivariate i.i.d.\ Gaussian noise $\varepsilon(t) \sim \mathcal{N}\left( 0, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $y(t) = u(t;\theta^*) + \varepsilon(t)$ as our observed data. Figure~\ref{fig:lotka-volterra:data} displays the values $y(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
 
 \begin{figure}[h]
 \centering
@@ -500,25 +521,25 @@ We take $\mathbf{u}(t;\pmb{\theta}^*)$ to be generated for $t \in [0, 25]$ by th
 \label{fig:lotka-volterra:data}}
 \end{figure}
 
-Inference is then performed by means of a random-walk Metropolis-Hastings algorithm. Note that the likelihood is not available in an explicit form in this case, but is instead determined by the deviation of the solution $\mathbf{u}(t;\pmb{\theta})$ from $\mathbf{y}(t)$ for each $\pmb{\theta}$. Specifically, we take
+Posterior inference is then performed by means of a random-walk Metropolis-Hastings algorithm. Assuming independent observations, we take the likelihood to be
 \begin{equation}
-\mathcal{L}(\pmb{\theta}) = \prod_{i=1}^N \phi_i(\mathbf{u}(t_i; \pmb{\theta})),
+\mathcal{L}(\theta) = \prod_{i=1}^N \phi_i(u(t_i; \theta)),
 \label{eq:lotka-volterra:likelihood}
 \end{equation}
 where 
 \begin{equation}
-\phi_i(\mathbf{u}(t_i;\pmb{\theta})) \propto \exp\left( -\frac{1}{2} (\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta}))^T C^{-1} (\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta})) \right)
+\phi_i(u(t_i;\theta)) \propto \exp\left( -\frac{1}{2} (y(t_i) - u(t_i; \theta))^T C^{-1} (y(t_i) - u(t_i; \theta)) \right)
 \label{eq:lotka-volterra:error-distr}
 \end{equation}
-with $C = \diag(0.2^2, 0.2^2)$. We also put independent standard normal priors on each of $\log \theta_i$, so that
+with $C = \diag(0.2^2, 0.2^2)$. Since $\theta_i > 0$, we put independent log-normal priors on each $\theta_i$, so
 \begin{equation}
-\pi(\pmb{\theta}) \propto \exp \left(-\frac{1}{2} (\log \pmb{\theta})^T (\log \pmb{\theta}) \right),
+\pi(\theta) \propto \exp \left(-\frac{1}{2} (\log \theta)^T (\log \theta) \right),
 \label{eq:lotka-volterra:prior}
 \end{equation}
-where the logarithm in $\log \pmb{\theta}$ is applied component-wise.
+where the logarithm in $\log \theta$ is applied component-wise.
 By the Bayes theorem, the posterior is then
 \begin{equation}
-p(\pmb{\theta}) \propto \mathcal{L}(\pmb{\theta}) \pi(\pmb{\theta}).
+p(\theta) \propto \mathcal{L}(\theta) \pi(\theta).
 \label{eq:lotka-volterra:posterior}
 \end{equation}
 We follow \cite{riabizOptimalThinningMCMC2022} in selecting the starting values for the chains (Table~\ref{table:lotka-volterra:starting_values}).
@@ -564,31 +585,32 @@ Since the parameters of the Lotka-Volterra model are non-negative, we run infere
 
 \paragraph{Stein thinning.} In order to use this approach, we need the gradients of the log-posterior. From~(\ref{eq:lotka-volterra:posterior}), we have
 \begin{equation*}
-\nabla_{\pmb{\theta}} \log p(\pmb{\theta}) = \nabla_{\pmb{\theta}} \log \mathcal{L}(\pmb{\theta}) + \nabla_{\pmb{\theta}} \pi(\pmb{\theta}).
+\nabla_{\theta} \log p(\theta) = \nabla_{\theta} \log \mathcal{L}(\theta) + \nabla_{\theta} \pi(\theta).
 \end{equation*}
 Equation~(\ref{eq:lotka-volterra:likelihood}) yields
 \begin{equation*}
-\frac{\partial}{\partial \theta_s} \log \mathcal{L}(\pmb{\theta}) 
-= \sum_{i=1}^N \frac{\partial}{\partial \theta_s} \log \phi_i(\mathbf{u}(t_i; \pmb{\theta}))
+\frac{\partial}{\partial \theta_s} \log \mathcal{L}(\theta) 
+= \sum_{i=1}^N \frac{\partial}{\partial \theta_s} \log \phi_i(u(t_i; \theta))
 = \sum_{i=1}^N \sum_{r=1}^q \frac{\partial}{\partial u_r} (\log \phi_i) \frac{\partial u_r}{\partial \theta_s},
 \end{equation*}
-where $q = 2$ is the dimension of the vector $\mathbf{u}(t)$ and $s \in \{1, \dots, 4\}$. This can be written in the matrix form as
+where $q = 2$ is the dimension of the vector $u(t)$ and $s \in \{1, \dots, 4\}$. This can be written in the matrix form as
 \begin{equation*}
-(\nabla_{\pmb{\theta}} \log \mathcal{L})(\pmb{\theta}) = \sum_{i=1}^N (S(t_i))^T (\nabla_{\mathbf{u}} \log \phi_i)(\mathbf{u}(t_i; \pmb{\theta})),
+(\nabla_{\theta} \log \mathcal{L})(\theta) = \sum_{i=1}^N (S(t_i))^T (\nabla_{u} \log \phi_i)(u(t_i; \theta)),
 \end{equation*}
 where the elements of the sensitivities matrix are given by
 \begin{equation*}
-S_{r,s} \coloneq \frac{\partial u_r}{\partial \theta_s}.
+S_{r,s} \coloneq \frac{\partial u_r}{\partial \theta_s},
 \end{equation*}
+where $r \in \{1, 2\}$ and $s \in \{1, \dots, 4\}$.
 The gradient
 \begin{equation*}
-(\nabla_\mathbf{u} \log \phi_i)(\mathbf{u}(t_i; \pmb{\theta})) = C^{-1}(\mathbf{y}(t_i) - \mathbf{u}(t_i; \pmb{\theta}))
+(\nabla_u \log \phi_i)(u(t_i; \theta)) = C^{-1}(y(t_i) - u(t_i; \theta))
 \end{equation*}
-is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obtain the sensitivities $\frac{\partial u_r}{\partial \theta_s}$, we augment the system~(\ref{eq:lotka-volterra}) with additional forward sensitivity equations and solve it numerically. The derivation of the sensitivity equations can be found in Appendix~\ref{appendix:derivations:forward-sensitivity}. Alternatively, the sensitivities can be obtained by numerical differentiation, for example using the Python library \texttt{JAX}\footnote{\url{https://jax.readthedocs.io}}. Since the gradient is calculated independently for each element of the sample, these calculations can easily be parallelised\footnote{Parallelisation can be implemented with minimal effort using the Python \texttt{Dask} library (\url{https://docs.dask.org}) and run either locally or on Amazon Web Services (\url{https://aws.amazon.com}). See \url{https://github.com/aglebov/gradient-free-mcmc-postprocessing/blob/main/code/examples/Dask_AWS.ipynb} for a demonstration.}.
+is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obtain the sensitivities $\partial u_r / \partial \theta_s$, we augment the system~(\ref{eq:lotka-volterra}) with additional forward sensitivity equations and solve it numerically. The derivation of the sensitivity equations can be found in Appendix~\ref{appendix:derivations:forward-sensitivity}. Alternatively, the sensitivities can be obtained by numerical differentiation, for example using the Python library \texttt{JAX}\footnote{\url{https://jax.readthedocs.io}}. Since the gradient is calculated independently for each element of the sample, these calculations can easily be parallelised at postprocessing stage\footnote{Parallelisation can be implemented with minimal effort using the Python \texttt{Dask} library (\url{https://docs.dask.org}) and run either locally or on Amazon Web Services (\url{https://aws.amazon.com}). See \url{https://github.com/aglebov/gradient-free-mcmc-postprocessing/blob/main/code/examples/Dask_AWS.ipynb} for a demonstration.}.
 
 The gradient of the log-prior is obtained immediately from~(\ref{eq:lotka-volterra:prior}):
 \begin{equation*}
-\nabla_{\pmb{\theta}} \log \pi(\pmb{\theta}) = -\frac{\log \pmb{\theta}}{\pmb{\theta}},
+\nabla_{\theta} \log \pi(\theta) = -\frac{\log \theta}{\theta},
 \end{equation*}
 where the logarithm and division are component-wise.
 
@@ -608,11 +630,11 @@ The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volter
 \label{fig:lotka-volterra:stein-thinning:energy-distance}}
 \end{figure}
 
-\paragraph{Gradient-free Stein thinning.} The KDE proxy, which performed best for the Gaussian mixture in Section~\ref{sec:gaussian-mixture}, becomes computationally infeasible here due to the size of the sample. Indeed, if KDE is built based on the entire sample, and is evaluated for each point of the sample, the resulting computational cost grows as $O(n^2)$, where $n$ is the sample size. One could try to build a KDE based on a subsample of size $m < n$, however if the computational budget is fixed (i.e. $mn = \text{const}$) then larger $n$ implies lower $m$ and thus inferior approximation of the target density.
+\paragraph{Gradient-free Stein thinning.} The choice of KDE as the auxiliary distribution, which performed best for the Gaussian mixture in Section~\ref{sec:gaussian-mixture}, becomes computationally infeasible here due to the size of the sample. Indeed, if KDE is built based on the entire sample, and is evaluated for each point of the sample, the resulting computational cost grows as $O(n^2)$, where $n$ is the sample size. One could try to build a KDE based on a subsample of size $m < n$, however if the computational budget is fixed (i.e. $mn = \text{const}$) then larger $n$ implies lower $m$ and thus inferior approximation of the target density.
 
 As in the case of the Gaussian mixture, the Laplace approximation fails to produce a thinned sample here due to ratio $q(x) / p(x)$ vanishing away from the mode. Instead, we attempt to use the Student's $t$ distribution, which exhibits polynomially-decaying tails. To select the parameters of the $t$ distribution, we perform numerical optimisation in the spirit of Section 7.13.3 of \cite{ruppertStatisticsDataAnalysis2015}. As an alternative strategy, we also evaluate the following configuration: set the location of the Student's $t$ distribution to be the mode of the sample (i.e. the point with the highest target probability), set the scale parameter to the sample covariance multiplied by 3, and the degrees of freedom parameter to 4. The values were hand-picked by trial and error to achieve smaller resulting energy distance.
 
-Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-picked choice of the proxy out-performs the gradient-based approach in terms of energy distance, while the optimised choice fares worse, in fact for the first chain it comes out even worse than na\"ive thinning. While it is surprising that the gradient-free approach being an approximation of the gradient-based algorithm ends up beating it on energy distance, we note that the energy distance looks at the similarity of distributions from a different angle compared to the KSD, so the two are not necessarily maximised by the same configuration. Figure~\ref{fig:lotka-volterra:gf-thinning:ksd} confirms that the gradient-based algorithm consistently achieves the lowest values of the kernel Stein discrepancy among the variations considered.
+Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-picked choice of the auxiliary distribution out-performs the gradient-based approach in terms of energy distance, while the optimised choice fares worse, in fact for the first chain it comes out even worse than na\"ive thinning. While it is surprising that the gradient-free approach being an approximation of the gradient-based algorithm ends up beating it on energy distance, we note that the energy distance looks at the similarity of distributions from a different angle compared to the KSD, so the two are not necessarily maximised by the same configuration. Figure~\ref{fig:lotka-volterra:gf-thinning:ksd} confirms that the gradient-based algorithm consistently achieves the lowest values of the kernel Stein discrepancy among the variations considered.
 
 \begin{figure}[h]
 \centering
@@ -632,29 +654,25 @@ Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-
 \label{fig:lotka-volterra:gf-thinning:ksd}}
 \end{figure}
 
-Echoing the observations from the preceding section, we conclude that a good choice of the proxy distribution is key for successfully applying the gradient-free algorithm. It becomes clear, however, that a good choice might be difficult to come up with in practice, as it relies on the MCMC sample to guide the search. Alternative measures of quality, such as the energy distance, might also be unavailable for larger samples, as was the case in the cardiac inference problem reported by \cite{riabizOptimalThinningMCMC2022}.
+Echoing the observations from the preceding section, we conclude that a good choice of an auxiliary distribution is key for successfully applying the gradient-free algorithm. It becomes clear, however, that a good choice might be difficult to come up with in practice, as it relies on the MCMC sample to guide the search. In a practical setting, however, one might not have access to high-quality samples, as was the case for the calcium signalling model considered by \cite{riabizOptimalThinningMCMC2022}.
 
 \chapter{Conclusions and Further Work}
 \label{ch:conclusions}
 
-This dissertation makes two contributions:
-\begin{itemize}
-\item Implementation of the gradient-free thinning added into the Python library \texttt{stein-thinning}.
-\item Evaluation of the performance of the proposed approach for a Gaussian mixture and the Lotka-Volterra inverse problem.
-\end{itemize}
+This dissertation makes two contributions. We implement the gradient-free Stein thinning algorithm in the Python library \texttt{stein-thinning} and evaluate the performance of the proposed algorithm for i.i.d.\ samples from a Gaussian mixture and MCMC samples from the Lotka-Volterra inverse problem.
 
-We conclude that the gradient-free approach is feasible and performs similarly to the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for small thinned sample sizes, however its performance depends crucially on the choice of the proxy distribution. Even in the highly favourable setting of a Gaussian mixture, choosing the proxy based on the Laplace approximation fails to produce a thinned sample, while a simple Gaussian proxy using the sample mean and covariance proves to be inferior to the na\"ive thinning approach. Bespoke treatment is required for more complex problems, as demonstrated by the case of parameter inference in the Lotka-Volterra model. In deciding whether to use the new algorithm as opposed to the gradient-based approach, the effort involved in selecting a good proxy must be weighed against the computational cost of obtaining gradients.
+We conclude that the gradient-free approach is feasible and performs similarly to the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for small thinned sample sizes, however its performance depends crucially on the choice of the auxiliary distribution. Even in the highly favourable setting of i.i.d.\ samples from a Gaussian mixture for instance, choosing the auxiliary distribution based on the Laplace approximation fails to produce a thinned sample. Bespoke treatment is required for more complex problems, as demonstrated by the case of parameter inference in the Lotka-Volterra model. In deciding whether to use the new algorithm as opposed to the gradient-based approach, the effort involved in selecting a good auxiliary distribution must be weighed against the computational cost of obtaining gradients.
 
 Many interesting avenues for further research remain open:
 \begin{itemize}
 
-\item Evaluate the choices of KDE kernels other than Gaussian for constructing the proxy distribution. Kernels with bounded support (uniform, saw-tooth, Epanechnikov) are expected to be of limited use, since they do not provide gradient estimates outside of their support, however fat-tailed kernels (e.g. exponential or Student's $t$) are an interesting option to consider.
+\item Evaluate the choices of KDE kernels other than Gaussian for constructing the auxiliary distribution. Kernels with bounded support (uniform, saw-tooth, Epanechnikov) are expected to be of limited use, since they do not provide gradient estimates outside of their support, however fat-tailed kernels (e.g. exponential or Student's $t$) are an interesting option to consider.
 
 \item Parallelise the computation of KDE. As noted in Section~\ref{sec:lotka-volterra}, the computational cost of the KDE approach rises as $O(n^2)$, where $n$ is the size of the sample. Evaluations of the density, however, can be performed in parallel, extending the range of sample sizes that can be handled within a given time budget.
 
 \item Perform thinning in a lower-dimensional space. Samples from the MCMC runs for the Lotka-Volterra problem (see Figure~\ref{fig:lotka-volterra:chain1-sample}, for example) indicate correlation between the parameters. Principal component analysis (PCA) could be used to identify a lower-dimensional representation of the samples, and thinning could be done in the transformed space.
 
-\item Develop a principled procedure for selecting the parameters of a Student's $t$ proxy. In Section~\ref{sec:lotka-volterra}, we hand-picked values for the parameters by calculating the energy distance for the resulting sample repeatedly. The approach is dissatisfying in its arbitrariness. Instead, one could, for example, try choosing the degrees of freedom parameter based on the tail behaviour of the target distribution and then optimising the location and scale of the $t$ distribution.
+\item Develop a principled procedure for selecting the parameters of a Student's $t$ auxiliary distribution. In Section~\ref{sec:lotka-volterra}, we hand-picked values for the parameters by calculating the energy distance for the resulting sample repeatedly. The approach is dissatisfying in its arbitrariness. Instead, one could, for example, try choosing the degrees of freedom parameter based on the tail behaviour of the target distribution and then optimising the location and scale of the $t$ distribution.
 
 \item Investigate the feature of Figure~\ref{fig:lotka-volterra:stein-thinning:energy-distance}, whereby the energy distance for the gradient-based algorithm remains approximately constant up to sample sizes around 1000, and then starts reducing further. \cite{riabizOptimalThinningMCMC2022} plot the corresponding dependency for sample sizes up to 200, so we cannot be sure if the same effect was observed in their experiments.
 
@@ -662,9 +680,9 @@ Many interesting avenues for further research remain open:
 
 \item Building on the preceding idea, run an experiment initialising a large number of chains with starting values drawn from some distribution, perform sampling and thinning, and compare the mean-squared errors of the resulting parameter estimates.
 
-\item Repeat the experiments in Section~\ref{sec:lotka-volterra} with more advanced MCMC algorithms, for example the MALA sampler considered in \cite{riabizOptimalThinningMCMC2022} or the NUTS sampler implemented in the \texttt{Stan} library.
+\item Repeat the experiments in Section~\ref{sec:lotka-volterra} with more advanced MCMC algorithms, for example the MALA sampler considered in \cite{riabizOptimalThinningMCMC2022} or the HMC sampler implemented in the \texttt{Stan} library.
 
-\item Check how running a gradient-free MCMC sampling algorithm (such the random-walk Metropolis-Hastings) followed by Stein thinning of the sample compares to running a gradient-based sampling algorithm (e.g. NUTS). Given the sequential nature of MCMC, the costs of calculating the gradients add up in the later case, but can be parallelised in the former. It would be interesting to see which approach produces higher-quality samples under a fixed time budget.
+\item Check how running a gradient-free MCMC sampling algorithm (such the random-walk Metropolis-Hastings) followed by Stein thinning of the sample compares to running a gradient-based sampling algorithm (e.g. HMC). Given the sequential nature of MCMC, the costs of calculating the gradients add up in the later case, but can be parallelised in the former. It would be interesting to see which approach produces higher-quality samples under a fixed time budget.
 
 \item Demonstrate the bias-correction result of Theorem 3 in \cite{riabizOptimalThinningMCMC2022} for the gradient-free algorithm.
 
@@ -680,7 +698,24 @@ Many interesting avenues for further research remain open:
 \section{Stein kernel based on inverse multiquadratic kernel}
 \label{appendix:derivations:imq-stein}
 
-Given a kernel $k(x,y)$, the corresponding Stein kernel is given by~(\ref{eq:deriv:stein-kernel}). For the inverse multiquadratic kernel~(\ref{eq:imq}) we obtain
+When $k(x,y)$ is the inverse multiquadratic kernel~(\ref{eq:imq}), the corresponding Stein kernel $k_P(x, y)$ is obtained from~(\ref{eq:deriv:stein-kernel}). We start by evaluating the terms in (\ref{eq:deriv:stein-kernel}). First, for 
+\begin{equation}
+\begin{aligned}
+\frac{\partial^2}{\partial x_r\,\partial y_r} k(x,y) 
+= &-4 \beta(\beta-1) \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-2} \left(\sum_{j=1}^d \Gamma^{-1}_{rj}(x_j - y_j)\right)^2 \\
+&- 2\beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \Gamma^{-1}_{rr}
+\end{aligned}
+\end{equation}
+which gives us
+\begin{equation}
+\begin{aligned}
+(\nabla_x \cdot \nabla_y) k(x,y) 
+&= -4 \beta(\beta-1) \left(c^2 + \| \Gamma^{-1/2}(x-y)\|^2\right)^{\beta-2} \| \Gamma^{-1}(x - y)\|^2 \\
+&- 2\beta \left(c^2 + \|\Gamma^{-1/2}(x-y)\|^2\right)^{\beta-1} \trace(\Gamma^{-1})
+\label{eq:appx:deriv:nablax_nablay}
+\end{aligned}
+\end{equation}
+Now,
 \begin{equation}
 \begin{aligned}
 \frac{\partial}{\partial x_r} k(x,y) 
@@ -702,23 +737,8 @@ and similarly
 \nabla_y k(x,y) = -2 \beta \left(c^2 + \| \Gamma^{-1/2} (x-y)\|^2\right)^{\beta-1} \Gamma^{-1} (x - y).
 \label{eq:appx:deviv:nablay}
 \end{equation}
-Now
-\begin{equation}
-\begin{aligned}
-\frac{\partial^2}{\partial x_r\,\partial y_r} k(x,y) 
-= &-4 \beta(\beta-1) \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-2} \left(\sum_{j=1}^d \Gamma^{-1}_{rj}(x_j - y_j)\right)^2 \\
-&- 2\beta \left(c^2 + \sum_{i=1}^d\sum_{j=1}^d (x_i-y_i) \Gamma^{-1}_{ij}(x_j-y_j)\right)^{\beta-1} \Gamma^{-1}_{rr}
-\end{aligned}
-\end{equation}
-which gives us
-\begin{equation}
-\begin{aligned}
-(\nabla_x \cdot \nabla_y) k(x,y) 
-&= -4 \beta(\beta-1) \left(c^2 + \| \Gamma^{-1/2}(x-y)\|^2\right)^{\beta-2} \| \Gamma^{-1}(x - y)\|^2 \\
-&- 2\beta \left(c^2 + \|\Gamma^{-1/2}(x-y)\|^2\right)^{\beta-1} \trace(\Gamma^{-1})
-\label{eq:appx:deriv:nablax_nablay}
-\end{aligned}
-\end{equation}
+
+
 
 Substituting (\ref{eq:appx:deviv:nablax}), (\ref{eq:appx:deviv:nablay}) and (\ref{eq:appx:deriv:nablax_nablay}) into (\ref{eq:deriv:stein-kernel}), we obtain
 \begin{equation}
@@ -735,7 +755,17 @@ k_P(x, y)
 \end{aligned}
 \label{eq:k_P:IMQ}
 \end{equation}
-where we have denoted $D = c^2 + \| \Gamma^{-1/2}(x-y)\|^2$.
+where in the last equation we have denoted $D = c^2 + \| \Gamma^{-1/2}(x-y)\|^2$.
+
+\section{Gradient of the Gaussian mixture distribution}
+\label{appendix:derivations:gaussian-mixture-gradient}
+
+For multivariate normal distributions with density functions
+$$f_i(x) = \frac{1}{(2\pi)^{d/2} |\Sigma_i|^{1/2}}\exp\left(-\frac{1}{2}(x - \mu_i)^T \Sigma_i^{-1}(x - \mu_i)\right),$$
+where $x \in \mathbb{R}^d$, the mixture density with $k$ components is given by
+$$f(x) = \sum_{i=1}^k w_i f_i(x),$$
+thus the gradient of its log-density is obtained as
+$$\nabla_{x} \log f(x) = \frac{\sum_{i=1}^k w_i \nabla_{x} f_i(x)}{\sum_{i=1}^k w_i f_i(x)} = -\frac{\sum_{i=1}^k w_i f_i(x) \Sigma_i^{-1}(x - \mu_i)}{\sum_{i=1}^k w_i f_i(x)}.$$
 
 \section{Forward sensitivity equations for the Lotka-Volterra model}
 \label{appendix:derivations:forward-sensitivity}
