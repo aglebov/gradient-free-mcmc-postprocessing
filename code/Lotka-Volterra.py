@@ -87,7 +87,7 @@ client
 map_parallel = get_map_parallel(client)
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Generate synthetic data
 
 # %% [markdown]
@@ -956,7 +956,7 @@ is_positive_definite(-hess)
 
 # %%
 sample_mean = np.mean(rw_samples[0], axis=0)
-sample_cov = np.cov(rw_samples[0], rowvar=False, ddof=4)
+sample_cov = np.cov(rw_samples[0], rowvar=False, ddof=d)
 
 # %%
 sample_mean
@@ -1236,7 +1236,7 @@ def rw_gf_t2_idx() -> list[np.ndarray]:
     log_ps = list(rw_log_p)
     def calculate(i):
         sample_mode = samples[i][np.argmax(log_ps[i])]
-        sample_cov = np.cov(samples[i], rowvar=False, ddof=4)
+        sample_cov = np.cov(samples[i], rowvar=False, ddof=d)
         return thin_gf_t(samples[i], log_ps[i], sample_mode, sample_cov * 3, 4, n_points_calculate)
     return map_parallel(calculate, range(len(theta_inits)))
 
@@ -1326,7 +1326,7 @@ subsample_log_q[426876]
 
 # %%
 subsample_mean = np.mean(subsample, axis=0)
-subsample_cov = np.cov(subsample, rowvar=False, ddof=4)
+subsample_cov = np.cov(subsample, rowvar=False, ddof=d)
 
 # %%
 subsample_mean
@@ -1407,19 +1407,80 @@ def get_indices(name):
 
 
 # %%
+def plot_comparison(result_function, entries):
+    fig = plt.figure(figsize=(15, 9), constrained_layout=True)
+    axs = centered_subplots(fig, [3, 2])
+    for j in range(len(theta_inits)):
+        for idx_name, label in entries.items():
+            res = result_function(idx_name)(j)
+            axs[j].plot(res[:, 0], res[:, 1], label=label);
+        axs[j].set_xlabel('Thinned sample size');
+        axs[j].set_ylabel('Energy distance');
+        axs[j].set_title(f'Chain {j + 1}');
+        axs[j].legend();
+        axs[j].set_xscale('log');
+    return fig
+
+
+# %%
 # %%time
-fig = plt.figure(figsize=(15, 9), constrained_layout=True)
-axs = centered_subplots(fig, [3, 2])
-for j in range(len(theta_inits)):
-    for idx_name, label in indices_to_plot.items():
-        res = get_indices(idx_name)(j)
-        axs[j].plot(res[:, 0], res[:, 1], label=label);
-    axs[j].set_xlabel('Thinned sample size');
-    axs[j].set_ylabel('Energy distance');
-    axs[j].set_title(f'Chain {j + 1}');
-    axs[j].legend();
-    axs[j].set_xscale('log');
+fig = plot_comparison(get_indices, indices_to_plot)
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning-energy-distance.pdf');
+
+# %%
+from stein_thinning.stein import ksd
+from stein_thinning.thinning import _make_stein_integrand
+
+
+# %%
+def reindex_integrand(integrand, indices):
+    def res(ind1, ind2):
+        return integrand(indices[ind1], indices[ind2])
+    return res
+
+
+# %%
+def calculate_ksd(sample, gradient, idx):
+    integrand = _make_stein_integrand(sample, gradient)
+    integrand_restricted = reindex_integrand(integrand, idx)
+    return ksd(integrand_restricted, idx.shape[0])
+
+
+# %%
+@cached(recalculate=recalculate, persist=True)
+def rw_ksd(i_chain, idx_name) -> np.ndarray:
+    sample = rw_samples[i_chain]
+    gradient = rw_grads[i_chain]
+    idx = globals()[idx_name][i_chain]
+    distances = calculate_ksd(sample, gradient, idx)[thinned_sizes - 1]
+    return np.stack([thinned_sizes, distances], axis=1)
+
+
+# %%
+@cached(recalculate=recalculate, persist=True)
+def rw_ksd_naive(i_chain) -> np.ndarray:
+    sample = rw_samples[i_chain]
+    gradient = rw_grads[i_chain]
+    n = sample.shape[0]
+    distances = np.fromiter(
+        (calculate_ksd(sample, gradient, naive_idx(n, thinned_size))[-1] for thinned_size in thinned_sizes),
+        float,
+    )
+    return np.stack([thinned_sizes, distances], axis=1)
+
+
+# %%
+def get_indices_ksd(name):
+    if name == 'rw_naive':
+        return rw_ksd_naive
+    else:
+        return lambda i: rw_ksd(i, name)
+
+
+# %%
+# %%time
+fig = plot_comparison(get_indices_ksd, indices_to_plot)
+fig.savefig(figures_path / 'lotka-volterra-stein-thinning-ksd.pdf');
 
 # %%
 indices_to_plot = {
@@ -1431,18 +1492,13 @@ indices_to_plot = {
 
 # %%
 # %%time
-fig = plt.figure(figsize=(15, 9), constrained_layout=True)
-axs = centered_subplots(fig, [3, 2])
-for j in range(len(theta_inits)):
-    for idx_name, label in indices_to_plot.items():
-        res = get_indices(idx_name)(j)
-        axs[j].plot(res[:, 0], res[:, 1], label=label);
-    axs[j].set_xlabel('Thinned sample size');
-    axs[j].set_ylabel('Energy distance');
-    axs[j].set_title(f'Chain {j + 1}');
-    axs[j].legend();
-    axs[j].set_xscale('log');
+fig = plot_comparison(get_indices, indices_to_plot)
 fig.savefig(figures_path / 'lotka-volterra-gf-thinning-energy-distance.pdf');
+
+# %%
+# %%time
+fig = plot_comparison(get_indices_ksd, indices_to_plot)
+fig.savefig(figures_path / 'lotka-volterra-gf-thinning-ksd.pdf');
 
 # %% [markdown]
 # Notebook execution took:

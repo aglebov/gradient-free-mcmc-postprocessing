@@ -612,9 +612,7 @@ The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volter
 
 As in the case of the Gaussian mixture, the Laplace approximation fails to produce a thinned sample here due to ratio $q(x) / p(x)$ vanishing away from the mode. Instead, we attempt to use the Student's $t$ distribution, which exhibits polynomially-decaying tails. To select the parameters of the $t$ distribution, we perform numerical optimisation in the spirit of Section 7.13.3 of \cite{ruppertStatisticsDataAnalysis2015}. As an alternative strategy, we also evaluate the following configuration: set the location of the Student's $t$ distribution to be the mode of the sample (i.e. the point with the highest target probability), set the scale parameter to the sample covariance multiplied by 3, and the degrees of freedom parameter to 4. The values were hand-picked by trial and error to achieve smaller resulting energy distance.
 
-Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-picked choice of the proxy out-performs the gradient-based approach in terms of energy distance, while the optimised choice fares worse, in fact for the first chain it comes out even worse than na\"ive thinning. While it is surprising that the gradient-free approach being an approximation of the gradient-based algorithm ends up beating it on energy distance, we note that the energy distance looks at the similarity of distributions from a different angle compared to the KSD, so the two are not necessarily maximised by the same configuration. 
-
-\todo[inline]{Plot KSD and check that the hand-picked version is worse than the gradient-based approach.}
+Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-picked choice of the proxy out-performs the gradient-based approach in terms of energy distance, while the optimised choice fares worse, in fact for the first chain it comes out even worse than na\"ive thinning. While it is surprising that the gradient-free approach being an approximation of the gradient-based algorithm ends up beating it on energy distance, we note that the energy distance looks at the similarity of distributions from a different angle compared to the KSD, so the two are not necessarily maximised by the same configuration. Figure~\ref{fig:lotka-volterra:gf-thinning:ksd} confirms that the gradient-based algorithm consistently achieves the lowest values of the kernel Stein discrepancy among the variations considered.
 
 \begin{figure}[h]
 \centering
@@ -623,6 +621,15 @@ Figure~\ref{fig:lotka-volterra:gf-thinning:energy-distance} shows that our hand-
 }
 \caption{Energy distance comparison between gradient-free and standard Stein thinning for the Lotka-Volterra inverse problem.
 \label{fig:lotka-volterra:gf-thinning:energy-distance}}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{lotka-volterra-gf-thinning-ksd.pdf}
+}
+\caption{Kernel Stein discrepancy comparison between gradient-free and standard Stein thinning for the Lotka-Volterra inverse problem.
+\label{fig:lotka-volterra:gf-thinning:ksd}}
 \end{figure}
 
 Echoing the observations from the preceding section, we conclude that a good choice of the proxy distribution is key for successfully applying the gradient-free algorithm. It becomes clear, however, that a good choice might be difficult to come up with in practice, as it relies on the MCMC sample to guide the search. Alternative measures of quality, such as the energy distance, might also be unavailable for larger samples, as was the case in the cardiac inference problem reported by \cite{riabizOptimalThinningMCMC2022}.
