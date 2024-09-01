@@ -14,6 +14,7 @@
 \usepackage{svg}
 \usepackage{tabularx}
 \usepackage{pdfpages}
+\usepackage[nameinlink]{cleveref}
 
 \usepackage{geometry}
 \geometry{margin=2cm}
@@ -87,12 +88,12 @@ The Stein thinning algorithm was recently proposed by \cite{riabizOptimalThinnin
 
 We adopt the proposal of \cite{fisherGradientFreeKernelStein2024} to implement a gradient-free version of the original Stein thinning algorithm, and evaluate the newly developed algorithm on simple but illustrative cases of the Gaussian mixture and Bayesian inference for the parameters of the Lotka-Volterra model, demonstrating the feasibility of the algorithm, and highlighting practical challenges for its application.
 
-The report is organised as follows. Chapter~\ref{ch:background} reviews MCMC methods and discusses the challenges of applying MCMC to practical problems. It proceeds to explain how the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} offers a solution for retrospective bias removal and compression of samples. The gradient-free KSD of \cite{fisherGradientFreeKernelStein2024} is then introduced. Chapter~\ref{ch:methodology} describes our proposed approach, supported by numerical experiments. Finally, Chapter~\ref{ch:conclusions} summarises the finding of the experiments and suggests ideas for further research. Additional derivations and figures are included in the Appendices.
+The report is organised as follows. \Cref{ch:background} reviews MCMC methods and discusses the challenges of applying MCMC to practical problems. It proceeds to explain how the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} offers a solution for retrospective bias removal and compression of samples. The gradient-free KSD of \cite{fisherGradientFreeKernelStein2024} is then introduced. \Cref{ch:methodology} describes our proposed approach, supported by numerical experiments. Finally, \Cref{ch:conclusions} summarises the finding of the experiments and suggests ideas for further research. Additional derivations and figures are included in the Appendices.
 
 The Python code reproducing the experiments in this report can be found at:
 \begin{center}
 \vspace{-10pt}
-\url{https://github.com/aglebov/gradient-free-mcmc-postprocessing}.
+\url{https://github.com/aglebov/gradient-free-mcmc-postprocessing/code}.
 \vspace{-10pt}
 \end{center}
 The implementation of the gradient-free kernel Stein thinning was contributed by the author directly to the \texttt{stein-thinning} Python library:
@@ -720,6 +721,7 @@ Many interesting avenues for further research remain open.
 \bibliography{biblio}
 
 \appendix
+
 \chapter{Derivations}
 \label{appendix:derivations}
 
