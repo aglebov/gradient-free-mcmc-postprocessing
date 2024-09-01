@@ -50,6 +50,7 @@ from stein_thinning.thinning import thin, thin_gf
 from mcmc import sample_chain, metropolis_random_walk_step, rw_proposal_sampler
 import utils.caching
 from utils.caching import cached, cached_batch, subscriptable
+from utils.ksd import calculate_ksd
 from utils.parallel import apply_along_axis_parallel, get_map_parallel
 from utils.plotting import centered_subplots, highlight_points, plot_paths, plot_sample_thinned, plot_traces
 from utils.sampling import to_arviz
@@ -1426,24 +1427,6 @@ def plot_comparison(result_function, entries, y_label):
 # %%time
 fig = plot_comparison(get_indices, indices_to_plot, y_label='Energy distance')
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning-energy-distance.pdf');
-
-# %%
-from stein_thinning.stein import ksd
-from stein_thinning.thinning import _make_stein_integrand
-
-
-# %%
-def reindex_integrand(integrand, indices):
-    def res(ind1, ind2):
-        return integrand(indices[ind1], indices[ind2])
-    return res
-
-
-# %%
-def calculate_ksd(sample, gradient, idx):
-    integrand = _make_stein_integrand(sample, gradient)
-    integrand_restricted = reindex_integrand(integrand, idx)
-    return ksd(integrand_restricted, idx.shape[0])
 
 
 # %%

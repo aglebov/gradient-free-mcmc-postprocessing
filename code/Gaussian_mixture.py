@@ -37,6 +37,7 @@ from jax.scipy.stats import gaussian_kde as jgaussian_kde
 from stein_thinning.thinning import thin, thin_gf, _make_stein_integrand, _make_stein_gf_integrand
 from stein_thinning.stein import kmat
 
+from utils.ksd import calculate_ksd
 from utils.mvn import make_mvn_mixture
 from utils.plotting import centered_subplots, highlight_points, plot_density
 
@@ -400,19 +401,41 @@ entries_ed = [
 # %%
 # %%time
 ed_vals = [
-    [np.sqrt(dcor.energy_distance(sample[entry[0][:n]], sample2)) for n in range(1, thinned_size + 1)]
+    [np.sqrt(dcor.energy_distance(sample[entry[0][:m]], sample2)) for m in range(1, thinned_size + 1)]
     for entry in entries_ed
 ]
 
 # %%
-fig, ax = plt.subplots(constrained_layout=True)
-ax.plot(naive_st, label='Naïve');
+# %%time
+ksd_vals = [calculate_ksd(sample, gradient, entry[0]) for entry in entries_ed]
+
+# %%
+# %%time
+ksd_naive = [
+    calculate_ksd(sample, gradient, naive_thin(sample.shape[0], m)) for m in range(1, thinned_size + 1)
+]
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+
+axs[0].plot(naive_st, label='Naïve');
 for i, entry in enumerate(entries_ed):
-    ax.plot(ed_vals[i], label=entry[1]);
-ax.set_yscale('log');
-ax.set_xlabel('Thinned sample size');
-ax.set_ylabel('Energy distance');
-ax.legend();
+    axs[0].plot(ed_vals[i], label=entry[1]);
+axs[0].set_yscale('log');
+axs[0].set_xlabel('Thinned sample size');
+axs[0].set_ylabel('Energy distance');
+axs[0].legend();
+axs[0].set_title('Energy distance');
+
+axs[1].plot(naive_st, label='Naïve');
+for i, entry in enumerate(entries_ed):
+    axs[1].plot(ksd_vals[i], label=entry[1]);
+axs[1].set_yscale('log');
+axs[1].set_xlabel('Thinned sample size');
+axs[1].set_ylabel('Kernel Stein discrepancy');
+axs[1].legend();
+axs[1].set_title('Kernel Stein discrepancy');
+
 fig.savefig(figures_path / 'gaussian-mixture-comparison.pdf');
 
 # %% [markdown]
@@ -502,10 +525,14 @@ fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True);
 
 scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=log_q_laplace - log_p, vmin=vmin, vmax=vmax);
 axs[0].set_title('Laplace approximation');
+axs[0].set_xlabel('$x_1$');
+axs[0].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[0]);
 
 scatter = axs[1].scatter(sample[:, 0], sample[:, 1], c=log_q - log_p, vmin=vmin, vmax=vmax);
 axs[1].set_title('Simple Gaussian');
+axs[1].set_xlabel('$x_1$');
+axs[1].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[1]);
 
 fig.savefig(figures_path / 'gaussian-mixture-laplace-proxy.pdf');

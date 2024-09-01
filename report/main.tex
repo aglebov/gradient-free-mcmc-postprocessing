@@ -431,7 +431,7 @@ where $X, X' \sim P$ and $Y, Y' \sim Q$. The rationale for this expression comes
 \begin{equation*}
 D^2(P, Q) = \frac{1}{C_d} \int_{\mathbb{R}^d} \frac{(\hat{p} - \hat{q})^2}{\|t\|^2} \diff t,
 \end{equation*}
-where $C_d$ is a constant specific to the dimension $d$. In the univariate case, this coincides with the Cramer distance (\cite{cramerCompositionElementaryErrors1928})
+where $C_d$ is a constant specific to the dimension $d$. In the univariate case, this coincides with double the Cramer distance (\cite{cramerCompositionElementaryErrors1928})
 \begin{equation*}
 D^2(P, Q) = 2 \int_{-\infty}^{\infty} (F(t) - G(t))^2 dt,
 \end{equation*}
@@ -520,9 +520,9 @@ Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved b
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=0.6\textwidth]{gaussian-mixture-comparison.pdf}
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-comparison.pdf}
 }
-\caption{Energy distance comparison between thinning approaches for the bivariate Gaussian mixture sample.
+\caption{Comparison between thinning approaches for the bivariate Gaussian mixture sample.
 \label{fig:gmm:comparison}}
 \end{figure}
 
