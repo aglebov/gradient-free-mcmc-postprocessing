@@ -93,7 +93,7 @@ The report is organised as follows. \Cref{ch:background} reviews MCMC methods an
 The Python code reproducing the experiments in this report can be found at:
 \begin{center}
 \vspace{-10pt}
-\url{https://github.com/aglebov/gradient-free-mcmc-postprocessing/code}.
+\url{https://github.com/aglebov/gradient-free-mcmc-postprocessing}.
 \vspace{-10pt}
 \end{center}
 The implementation of the gradient-free kernel Stein thinning was contributed by the author directly to the \texttt{stein-thinning} Python library:
@@ -104,7 +104,7 @@ The implementation of the gradient-free kernel Stein thinning was contributed by
 
 \chapter*{Notation}
 
-For a matrix $A$, we use use $A^T$ to denote the transpose of the matrix. The matrix $A^{1/2}$ is the square root of matrix $A$ if it satisfies $A^{1/2} A^{1/2} = A$. $A^{-1}$ is the inverse of matrix $A$, if it exists. $I$ stands for the identity matrix of an appropriate dimension.
+For a matrix $A$, we use use $A^T$ to denote the transpose of $A$. The matrix $A^{1/2}$ is called the square root of $A$ if it satisfies $A^{1/2} A^{1/2} = A$. $A^{-1}$ is the inverse of $A$, if it exists. $I$ stands for the identity matrix of an appropriate dimension.
 
 We use $\langle x, y \rangle$ to denote the scalar product of $x$ and $y$, and $\| x \|$ to denote the norm of $x$.
 
@@ -113,22 +113,24 @@ For a function $f: \mathbb{R}^d \to \mathbb{R}$, $\nabla f(x)$ denotes the gradi
 \nabla f(x) \coloneq \left( \frac{\partial f(x)}{\partial x_1}, \dots, \frac{\partial f(x)}{\partial x_d} \right)^T,
 \end{equation*}
 where $x_i$ are the components of $x$ for $i \in \{1, \dots, d\}$.
-For a function of two arguments $f(x, y): \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$, we define the gradient w.r.t.\ to each argument:
+For a function of two arguments $f(x, y): \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$, we define gradients w.r.t.\ each argument:
 \begin{equation*}
 \begin{aligned}
 \nabla_x f(x, y) &\coloneq \left(\frac{\partial f(x, y)}{\partial x_1}, \dots, \frac{\partial f(x, y)}{\partial x_d}\right)^T, \\
 \nabla_y f(x, y) &\coloneq \left(\frac{\partial f(x, y)}{\partial y_1}, \dots, \frac{\partial f(x, y)}{\partial y_d}\right)^T, \\
 \end{aligned}
 \end{equation*}
-where $x_i$ and $y_i$ are the components of $x$ and $y$, respectively, for $i \in \{1, \dots, d\}$. The divergence operator $\nabla_x \cdot \nabla_y$ is then defined as
+where $x_i$ and $y_i$ are the components of $x$ and $y$, respectively, for $i \in \{1, \dots, d\}$. The operator $\nabla_x \cdot \nabla_y$ is then defined as
 \begin{equation*}
 (\nabla_x \cdot \nabla_y) f(x,y) \coloneq \sum_{i=1}^d \frac{\partial^2}{\partial x_i\, \partial y_i} f(x, y).
 \end{equation*}
 
-For a sequence of probability measures $P_m$ and a probability measure $P$ on a measurable space $\mathcal{X}$, $P_m \Rightarrow P$ as $m \to \infty$ denotes weak convergence:
+The probability of an event $A$ is denoted by $\mathbb{P}(A)$. For a sequence of probability measures $P_m$ and a probability measure $P$ on a measurable space $\mathcal{X}$, $P_m \Rightarrow P$ as $m \to \infty$ denotes weak convergence:
 \begin{equation*}
 \int_{\mathcal{X}} f \diff P_m \to \int_{\mathcal{X}} f \diff P \quad \text{as } m \to \infty \quad \text{for all bounded, continuous functions } f.
 \end{equation*}
+
+We use the common abbreviation ``i.i.d.'' for ``independent and identically distributed'' in relation to random variables.
 
 
 \chapter{Background}
@@ -140,14 +142,26 @@ Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling f
 
 The need to sample from a probability distribution arises in exploratory analysis as well as when analytical expressions are unavailable for quantities of interest, such as the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a Monte Carlo simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
 
-In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. In many cases, however, the complexity of the target distribution and the dimensionality of the parameter space render the simple methods infeasible or inefficient. The class of MCMC algorithms has arisen to address the challenge\todo{Mention what makes MCMC different from the other methods}.
+In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. When a bespoke strategy is unavailable, the accept-reject algorithm and importance sampling offer an alternative, provided one can find an auxiliary distribution that approximates the target sufficiently well and that is easy to sample from. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. In many cases, however, the complexity of the target distribution and the dimensionality of the parameter space render the direct sampling methods infeasible or inefficient. The class of MCMC algorithms has arisen to address the challenge\todo{Mention what makes MCMC different from the other methods}.
 
-\todo[inline]{Describe alternatives: accept-reject and importance sampling}
-
-An MCMC algorithm proceeds by sequentially constructing a chain of samples\footnote{These are also sometimes called ``draws''. In this report, we follow the literature in using the term ``sample'' both for a single element in an MCMC chain and for all such elements taken together as a sample from the target distribution.} $x_1$, $x_2$, $\dots$,  where each sample is drawn from a Markov transition kernel $Q$ conditional on the preceding value:
-$$x_{n+1} \sim Q(x_{n+1}|x_n).$$
-The distribution $Q$ is known as the transition kernel and is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $\Pi$:
-$$x_n \xrightarrow[]{d} \Pi \quad\text{as}\quad n \to \infty.$$
+Given a target distribution $P$ defined on a state space $\mathcal{X}$, an MCMC algorithm proceeds by constructing a chain of random variables $(X_i)_{i=0}^\infty$  which satisfy the Markov property:
+\begin{equation*}
+\mathbb{P}(X_{i+1}\in A | X_0, \dots, X_i) = \mathbb{P}(X_{i+1}\in A | X_i) \quad\text{for any measurable } A \in \mathcal{X}.
+\end{equation*}
+Viewed as a function, the right-hand side above is called the Markov transition kernel and is denoted by 
+\begin{equation}
+R(A | x) \coloneq \mathbb{P}(X_{i+1}\in A | X_i = x).
+\end{equation}
+If the transition kernel does not depend on the index $i$, the marginal distribution of $X_{i+1}$ is given by the recursive relationship
+\begin{equation*}
+P_{i+1}(A) \coloneq \mathbb{P}(X_{i+1} \in A) = \int_{\mathcal{X}} R(A|x) P_i(\diff x) \quad\text{for } i = 0, 1, \dots
+\end{equation*}
+The initial value $X_0$ is assumed to come from some known distribution $P_0$.
+The transition kernel $R$ is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $P$:
+\begin{equation*}
+P_i \Rightarrow P \quad\text{as}\quad i \to \infty.
+\end{equation*}
+A sample of size $n$ is a realisation $(x_i)_{i=0}^n$ of the first $n$ variables in the chain.
 
 Two classical variations of this technique are the Metropolis-Hastings and Gibbs algorithms.
 
@@ -156,8 +170,6 @@ $$x' \sim q(x' | x_n),$$
 which is then accepted with probability
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)} \frac{q(x_n|x')}{q(x'|x_n)}.$$
 If $x'$ is accepted, the algorithm sets $x_{n+1} = x'$. If $x'$ is rejected, the value remains unchanged: $x_{n+1} = x_n$.
-
-\todo[inline]{Consider using a different notation to avoid the confusion between the density of the proposal $q$ and the transition kernel $Q$.}
 
 The common choice for the proposal distribution $q$ is a symmetric proposal satisfying $q(x'|x_n) = q(x_n|x')$, so that the ratio of these two quantities disappears from the expression for the acceptance probability:
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)}.$$
@@ -475,7 +487,7 @@ and obtain 1000 samples by directly drawing from the target. A scatter plot of t
 \paragraph{Gradient-free Stein thinning.} This approach requires us to select an auxiliary distribution. We consider several options:
 \begin{itemize}
 \item a bivariate Gaussian with the mean and covariance matrix matching the sample mean and covariance of the sample,
-\item a Laplace approximation of the target distribution,
+\item a Laplace approximation of the target distribution (see Section 3.4 in \cite{robertMonteCarloStatistical2004}),
 \item a KDE approximation of the target constructed from the sample.
 \end{itemize}
 
