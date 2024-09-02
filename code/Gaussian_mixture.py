@@ -536,3 +536,26 @@ axs[1].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[1]);
 
 fig.savefig(figures_path / 'gaussian-mixture-laplace-proxy.pdf');
+
+# %%
+integrand = _make_stein_integrand(sample, gradient_q_laplace)
+km = kmat(integrand, sample.shape[0])
+km_vals = km[np.triu_indices_from(km)]
+
+# %%
+fig, ax = plt.subplots(constrained_layout=True)
+ax.hist(km_vals, bins=100);
+ax.set_yscale('log');
+ax.set_xlabel('$k_Q(x_i, x_j)$');
+ax.set_ylabel('Count');
+
+fig.savefig(figures_path / 'gaussian-mixture-kQ-hist.pdf');
+
+# %%
+np.min(km_vals)
+
+# %%
+np.max(km_vals)
+
+# %%
+np.exp(-35)

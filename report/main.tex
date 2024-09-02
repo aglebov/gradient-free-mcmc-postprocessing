@@ -142,13 +142,13 @@ Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling f
 
 The need to sample from a probability distribution arises in exploratory analysis as well as when analytical expressions are unavailable for quantities of interest, such as the modes or quantiles of the distribution, or for expectations with respect to the distribution, so a Monte Carlo simulation is used to obtain approximations instead. Such cases are frequent in Bayesian analysis, where the posterior density often has a complex structure with an analytically intractable normalising constant.
 
-In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. When a bespoke strategy is unavailable, the accept-reject algorithm and importance sampling offer an alternative, provided one can find an auxiliary distribution that approximates the target sufficiently well and that is easy to sample from. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. In many cases, however, the complexity of the target distribution and the dimensionality of the parameter space render the direct sampling methods infeasible or inefficient. The class of MCMC algorithms has arisen to address the challenge\todo{Mention what makes MCMC different from the other methods}.
+In the simplest cases where the inverse cumulative density function of a distribution is available, sampling can be done using the straightforward inverse method. Bespoke sampling methods, such as the Box-Muller transform for the normal distribution, can occasionally be developed by exploiting the properties of specific distributions. When a bespoke strategy is unavailable, the accept-reject algorithm and importance sampling offer an alternative, provided one can find an auxiliary distribution that approximates the target sufficiently well and that is easy to sample from. See Chapters 2 and 3 in \cite{robertMonteCarloStatistical2004} for an overview of these methods. In many cases, however, the complexity of the target distribution and the dimensionality of the parameter space render these methods infeasible or inefficient. The class of MCMC algorithms has arisen to address the challenge\todo{Mention what makes MCMC different from the other methods}.
 
 Given a target distribution $P$ defined on a state space $\mathcal{X}$, an MCMC algorithm proceeds by constructing a chain of random variables $(X_i)_{i=0}^\infty$  which satisfy the Markov property:
 \begin{equation*}
 \mathbb{P}(X_{i+1}\in A | X_0, \dots, X_i) = \mathbb{P}(X_{i+1}\in A | X_i) \quad\text{for any measurable } A \in \mathcal{X}.
 \end{equation*}
-Viewed as a function, the right-hand side above is called the Markov transition kernel and is denoted by 
+Viewed as a function, the right-hand side above is called the Markov transition kernel and is denoted 
 \begin{equation}
 R(A | x) \coloneq \mathbb{P}(X_{i+1}\in A | X_i = x).
 \end{equation}
@@ -171,11 +171,11 @@ which is then accepted with probability
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)} \frac{q(x_n|x')}{q(x'|x_n)}.$$
 If $x'$ is accepted, the algorithm sets $x_{n+1} = x'$. If $x'$ is rejected, the value remains unchanged: $x_{n+1} = x_n$.
 
-The common choice for the proposal distribution $q$ is a symmetric proposal satisfying $q(x'|x_n) = q(x_n|x')$, so that the ratio of these two quantities disappears from the expression for the acceptance probability:
+The common choice for $q$ is symmetric satisfying $q(x'|x_n) = q(x_n|x')$, so that the ratio of these two quantities disappears from the expression for the acceptance probability:
 $$\alpha(x_n, x') = 1 \wedge \frac{\pi(x')}{\pi(x_n)}.$$
 In the special case where $q(x'|x_n) = q(x' - x_n)$ we obtain a random walk proposal:
-$$x' = x_n + z,$$
-where the step $z$ is sampled from the proposal distribution of the algorithm, such as the multivariate normal distribution. The operation of the algorithm then resembles a random walk across the domain of the target distribution where steps towards areas of lower probability are more likely to be rejected. The scale of the step distribution determines the average size of the jump that the algorithm can make at each iteration and thus the speed of traversal of the target domain.
+$$x' = x_n + z.$$
+The step $z$ is sampled from the proposal distribution of the algorithm, such as the multivariate normal distribution. The operation of the algorithm then resembles a random walk across the domain of the target distribution where steps towards areas of higher probability are more likely to be accepted. The scale of the step distribution determines the average size of the jump that the algorithm can make at each iteration and thus the speed of traversal of the target domain. Choosing a good value for the step size is one of the practical hurdles one must address when using this algorithm, as we discuss in \Cref{sec:background:challenges}.
 
 An alternative to symmetric proposals is an independence proposal satisfying $q(x'|x_n) = q(x')$.
 
@@ -196,6 +196,7 @@ Note that the newly sampled values $x_{n+1}^{(I_1, \dots, I_{i-1})}$ enter the c
 Development of general-purpose and specialised MCMC algorithms remains an active area of research.
 
 \section{Challenges of running MCMC}
+\label{sec:background:challenges}
 
 While the asymptotic convergence of MCMC samples to the target distribution is guaranteed, no general guarantee is available for finite samples\todo{Consider adding a reference}, resulting in several interrelated challenges that a practitioner faces when applying this class of algorithms:
 \begin{enumerate}
@@ -264,9 +265,9 @@ of a Markov process $(Z_t)_{t \geq 0}$ with stationary distribution $P$ satisfie
 \end{equation}
 under mild conditions on $\mathcal{L}$ and $u$\todo{Check the conditions.}. In the specific case of an overdamped Langevin diffusion
 $$\diff Z_t = \frac{1}{2} \nabla \log p(Z_t) \diff t + \diff W_t,$$
-where $W_t$ is the standard Brownian motion, the infinitesimal generator becomes
+where $p$ is the density of $P$ and $W_t$ is the standard Brownian motion, the infinitesimal generator becomes
 $$(\mathcal{L}_P u)(x) = \frac{1}{2} \langle \nabla u(x), \nabla \log p(x)\rangle + \frac{1}{2}\langle \nabla, \nabla u(x) \rangle.$$
-Denoting $g  = \frac{1}{2}\nabla u$, they obtain the Stein operator
+Denoting $g  = \frac{1}{2}\nabla u$, \cite{gorhamMeasuringSampleQuality2015} obtain the Stein operator
 \begin{equation}
 \mathcal{A}_P g \coloneq \langle g, \nabla \log p \rangle + \langle \nabla, g \rangle = \langle p^{-1}\nabla, p g \rangle,
 \label{eq:stein-operator}
@@ -276,7 +277,7 @@ and rewrite~(\ref{eq:stein-discrepancy-sup}) via~(\ref{eq:infinitesimal:property
 \mathcal{D}_{P, \mathcal{G}}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff P' \right|
 \label{eq:stein-discrepancy-g}
 \end{equation}
-for a suitably chosen set $\mathcal{G}$. Since $p$ only appears in~(\ref{eq:stein-operator}) through $\nabla \log p$, the normalising constant of $p$ is not required to evaluate $\mathcal{D}_{P, \mathcal{G}}(P')$: for any constant $c > 0$ we have $\nabla \log (c p(x)) = \nabla \log p(x)$.
+for a suitably chosen set $\mathcal{G}$. The expression~(\ref{eq:stein-discrepancy-g}) defines the Stein discrepancy. Since $p$ only appears in~(\ref{eq:stein-operator}) through $\nabla \log p$, the normalising constant of $p$ is not required to evaluate $\mathcal{D}_{P, \mathcal{G}}(P')$: for any constant $c > 0$ we have $\nabla \log (c p(x)) = \nabla \log p(x)$.
 
 To remove the optimisation step in the calculation of~(\ref{eq:stein-discrepancy-g}), \cite{gorhamMeasuringSampleQuality2017} employ a reproducing kernel Hilbert space (RKHS) $\mathcal{H}(k)$ with kernel $k: \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}$ satisfying the reproducing property:
 $$f(x) = \langle f, k(x, \cdot)\rangle \quad\text{for } f \in \mathcal{H}(k).$$
@@ -328,7 +329,7 @@ Equipped with the kernel Stein discrepancy (KSD) as defined above, \cite{riabizO
 \KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m \subset \{x_i\}_{i=1}^n$ where $\pi(j) \in \{1, \dots, n\}$.}
 
 \For{$j = 1, \dots, m$}{
-$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_P(x_{\pi(j'}, x_i)$$
+$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_P(x_{\pi(j')}, x_i)$$
 }
 \end{algorithm}
 
@@ -367,9 +368,10 @@ where $p'$ is the density of distribution $P'$ and $k_Q(x, y)$ is given by~(\ref
 \label{eq:gf-ksd:discrete}
 \end{equation}
 where
-\begin{equation*}
+\begin{equation}
 k_{P,Q}(x_i, x_j) \coloneq \frac{q(x_i)}{p(x_i)} \frac{q(x_j)}{p(x_j)} k_Q(x_i, x_j).
-\end{equation*}
+\label{eq:k_P_Q}
+\end{equation}
 
 Similar to~(\ref{eq:ksd:discrete}), expression~(\ref{eq:gf-ksd:discrete}) averages the elements of a Gram matrix, and this fact can be exploited to provide an efficient implementation of the greedy search described in Section~\ref{sec:stein-thinning}.
 
@@ -400,7 +402,7 @@ k_{P,Q}(x, y)
  &\left[ -4 \frac{\beta(\beta-1) \| \Gamma^{-1}(x - y)\|^2}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta+2}} \right.  \\
 &- 2 \beta \frac{\trace(\Gamma^{-1}) + \langle \Gamma^{-1} (x - y), \nabla_x \log q(x) - \nabla_y \log q(y)\rangle}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta+1}} \\
 & \left. + \frac{\langle \nabla_x \log q(x), \nabla_y \log q(y) \rangle}{(c^2 + \| \Gamma^{-1/2}(x-y)\|^2)^{-\beta}} \right]. \\
-\label{eq:k_Q}
+\label{eq:k_P_Q:expanded}
 \end{aligned}
 \end{equation}
 The resulting procedure is shown in Algorithm~\ref{alg:gf}. The implementation of Algorithm~\ref{alg:gf} is added directly to the Python library \texttt{stein-thinning} and is publicly available.
@@ -411,7 +413,7 @@ The resulting procedure is shown in Algorithm~\ref{alg:gf}. The implementation o
 \KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m \subset \{x_i\}_{i=1}^n$ where $\pi(j) \in \{1, \dots, n\}$.}
 
 \For{$j = 1, \dots, m$}{
-$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_{P,Q}(x_{\pi(j'}, x_i)$$
+$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_{P,Q}(x_{\pi(j')}, x_i)$$
 }
 \end{algorithm}
 
@@ -451,7 +453,7 @@ We use synthetic data in order to have control over the ground truth in our expe
 \section{Bivariate Gaussian mixture}
 \label{sec:gaussian-mixture}
 
-The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm under the favourable conditions of an i.i.d.\ sample. Here we take the target distribution to be the bivariate Gaussian mixture with means 
+The purpose of the first test case is to confirm the expected behaviour of the proposed algorithm under the favourable conditions of an i.i.d.\ sample unaffected by autocorrelation and burn-in issues typical for MCMC output. Here we take the target distribution to be the bivariate Gaussian mixture with means 
 $$
 \mu_1 = \begin{pmatrix} -1 \\ -1 \end{pmatrix}, \qquad
 \mu_2 = \begin{pmatrix} 1 \\ 1 \end{pmatrix},
@@ -504,7 +506,15 @@ The results are shown in Figure~\ref{fig:gmm:thinned}. The failure of the Laplac
 \label{fig:gmm:thinned}}
 \end{figure}
 
-To see why the Laplace approximation fails in this case, note the multiplier $q(x) / p(x)$ in~(\ref{eq:k_Q}). Since the thinning algorithm seeks to minimise the sum, it will tend to prefer elements with low values of $q(x) / p(x)$. In Figure~\ref{fig:gmm:laplace-failure}, we plot the values $\log q(x) - \log p(x) = \log (q(x) / p(x))$ for points in the sample. It is clear that the points in the lower left corner of the plot become very attractive for the algorithm to select due to their miniscule values of the multiplier $q(x) / p(x)$. The low ratio $q(x) / p(x)$ for those points is in turn due to the fact that the Laplace approximation picks the larger of the two modes in the mixture, so it cannot serve as a good auxiliary distribution for the samples coming from the other component. By contrast, the simple Gaussian distribution achieves more uniform values of the multiplier.
+To see why the Laplace approximation fails in this case, recall that~(\ref{eq:k_P_Q:expanded}) can be written in the form~(\ref{eq:k_P_Q}) and note the multiplier $q(x) / p(x)$. In \Cref{fig:gmm:laplace-failure}, we plot the values $\log q(x) - \log p(x) = \log (q(x) / p(x))$ for points in the sample, and \Cref{fig:gmm:kQ:hist} shows the histogram of $k_Q(x_i, x_j)$. It is clear that for the points in the lower left corner of \Cref{fig:gmm:laplace-failure}, the values $q(x) / p(x)$ are of the order of $e^{-35}$, whereas $|k_Q(x_i, x_j)|$ is bounded by approximately 356, thus the product
+\begin{equation*}
+\frac{q(x_i)}{p(x_i)} \frac{q(x_j)}{p(x_j)} k_Q(x_i, x_j)
+\end{equation*}
+becomes effectively zero. Since \Cref{alg:gf} seeks to minimise the sum
+\begin{equation*}
+\frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_{P,Q}(x_{\pi(j')}, x_i),
+\end{equation*}
+it is compelled to select those points. The low ratio $q(x) / p(x)$ is in turn due to the fact that the Laplace approximation picks the larger of the two modes in the mixture, so it cannot account for the samples coming from the other component. By contrast, the simple Gaussian distribution achieves more uniform values of the $q(x) / p(x)$, as can also be seen in \Cref{fig:gmm:laplace-failure}.
 
 \begin{figure}[h]
 \centering
@@ -514,6 +524,16 @@ To see why the Laplace approximation fails in this case, note the multiplier $q(
 \caption{The values of $\log q(x) - \log p(x)$ for the points in the Gaussian mixture sample under the Laplace approximation and the simple Gaussian using the sample mean and covariance.
 \label{fig:gmm:laplace-failure}}
 \end{figure}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=0.5\textwidth]{gaussian-mixture-kQ-hist.pdf}
+}
+\caption{Histogram of values $k_Q(x_i, x_j)$ for the bivariate Gaussian sample.
+\label{fig:gmm:kQ:hist}}
+\end{figure}
+
 
 Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. We see that the gradient-free approach using the KDE is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. The gradient-free approach using the simple Gaussian approach proves inferior to the na\"ive approach.
 
@@ -706,7 +726,7 @@ This dissertation makes two contributions. We implement the gradient-free Stein 
 
 We conclude that the gradient-free approach is feasible and performs similarly to the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for small thinned sample sizes, however its performance depends crucially on the choice of the auxiliary distribution. Even in the highly favourable setting of i.i.d.\ samples from a Gaussian mixture for instance, choosing the auxiliary distribution based on the Laplace approximation fails to produce a thinned sample. Bespoke treatment is required for more complex problems, as demonstrated by the case of parameter inference in the Lotka-Volterra model. In deciding whether to use the new algorithm as opposed to the gradient-based approach, the effort involved in selecting a good auxiliary distribution must be weighed against the computational cost of obtaining gradients.
 
-Many interesting avenues for further research remain open.
+Many interesting avenues for further research remain open:
 
 \textit{Evaluate the choices of KDE kernels other than Gaussian for constructing the auxiliary distribution.} Kernels with bounded support (uniform, saw-tooth, Epanechnikov) are expected to be of limited use, since they do not provide gradient estimates outside of their support, however fat-tailed kernels (e.g. exponential or Student's $t$) are an interesting option to consider.
 
