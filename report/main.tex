@@ -308,12 +308,12 @@ If $P'$ is a discrete distribution, as in~(\ref{eq:discrete-distribution}), the 
 \end{equation}
 i.e.\ the average of the elements in the Gram matrix of $k_P(x_i, x_j)$, which is straightforward to compute.
 
-When $k(x, y)$ is chosen to be the inverse multiquadratic kernel (IMQ)
+When $k(x, y)$ is chosen to be the inverse multiquadric kernel (IMQ)
 \begin{equation}
 k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta
 \label{eq:imq}
 \end{equation}
-with $\beta \in (-1, 0)$ and $\Gamma = I$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{P}(P')$ provides convergence control: if $\mathcal{D}_{P}(P'_m) \to 0$, then $P'_m \Rightarrow P$ for a sequence of distributions $P'_m$ under suitable conditions (Theorem 8). Theorem 4 by \cite{chenSteinPointMarkov2019} justifies the introduction of $\Gamma$ in IMQ. The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadratic kernel is derived in Appendix~\ref{appendix:derivations:imq-stein}.
+with $\beta \in (-1, 0)$ and $\Gamma = I$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{P}(P')$ provides convergence control: if $\mathcal{D}_{P}(P'_m) \to 0$, then $P'_m \Rightarrow P$ for a sequence of distributions $P'_m$ under suitable conditions (Theorem 8). Theorem 4 by \cite{chenSteinPointMarkov2019} justifies the introduction of $\Gamma$ in IMQ. The expression for $k_P(x, y)$ when $k(x, y)$ is taken to be the inverse multiquadric kernel is derived in Appendix~\ref{appendix:derivations:imq-stein}.
 
 \todo[inline]{Check why it's not obvious that $\Gamma$ can be introduced.}
 
@@ -444,11 +444,15 @@ For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respective
 \label{eq:energy-distance:discrete}
 \end{equation*}
 
-We use the implementation of the energy distance from the \texttt{dcor} Python library by \cite{ramos-carrenoDcorDistanceCorrelation2023}.
+Thus to evaluate the closeness of the discrete approximation
+\begin{equation*}
+Q = \frac{1}{m} \sum_{j=1}^m \delta(y_j)
+\end{equation*}
+based on the sample $y_1, \dots, y_m$ to the target distribution $P$, we obtain a high-quality ``validation'' sample $x_1, \dots, x_n$ from $P$ and use equation (\ref{eq:energy-distance:discrete}) to calculate the energy distance. The manner of generating a validation sample is problem-specific and is discussed for each test case in the relevant sections.
 
-The advantages of choosing the energy distance as our quality metric are its relative ease of computation and its objectivity, since the energy distance is not directly optimised by the thinning algorithm.
+The advantages of choosing the energy distance as our proximity metric are its relative ease of computation and its objectivity, since the energy distance is not directly optimised by the thinning algorithm. We use the implementation of the energy distance from the \texttt{dcor} Python library by \cite{ramos-carrenoDcorDistanceCorrelation2023}.
 
-We use synthetic data in order to have control over the ground truth in our experiments.
+In order to have control over the ground truth, we use synthetic data in our experiments.
 
 \section{Bivariate Gaussian mixture}
 \label{sec:gaussian-mixture}
@@ -535,7 +539,7 @@ it is compelled to select those points. The low ratio $q(x) / p(x)$ is in turn d
 \end{figure}
 
 
-Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. We see that the gradient-free approach using the KDE is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. The gradient-free approach using the simple Gaussian approach proves inferior to the na\"ive approach.
+Finally, Figure~\ref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. The validation sample used in evaluating the energy distance is a separate i.i.d.\ sample of size 1000 from the same Gaussian mixture. We see that the gradient-free approach using the KDE is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. The gradient-free approach using the simple Gaussian approach proves inferior to the na\"ive approach.
 
 \begin{figure}[h]
 \centering
@@ -693,6 +697,8 @@ The results of applying Stein thinning are shown in Figure~\ref{fig:lotka-volter
 \label{fig:lotka-volterra:stein-thinning:energy-distance}}
 \end{figure}
 
+The validation sample we use for calculating the energy distance in this case was obtained by running the HMC algorithm with the starting points shown in \Cref{table:lotka-volterra:starting_values} for 10,000 steps and concatenating the results for the five chains.
+
 \paragraph{Gradient-free Stein thinning.} The choice of KDE as the auxiliary distribution, which performed best for the Gaussian mixture in Section~\ref{sec:gaussian-mixture}, becomes computationally infeasible here due to the size of the sample. Indeed, if KDE is built based on the entire sample, and is evaluated for each point of the sample, the resulting computational cost grows as $O(n^2)$, where $n$ is the sample size. One could try to build a KDE based on a subsample of size $m < n$, however if the computational budget is fixed (i.e. $mn = \text{const}$) then larger $n$ implies lower $m$ and thus inferior approximation of the target density.
 
 As in the case of the Gaussian mixture, the Laplace approximation fails to produce a thinned sample here due to ratio $q(x) / p(x)$ vanishing away from the mode. Instead, we attempt to use the Student's $t$ distribution, which exhibits polynomially-decaying tails. To select the parameters of the $t$ distribution, we perform numerical optimisation in the spirit of Section 7.13.3 of \cite{ruppertStatisticsDataAnalysis2015}. As an alternative strategy, we also evaluate the following configuration: set the location of the Student's $t$ distribution to be the mode of the sample (i.e. the point with the highest target probability), set the scale parameter to the sample covariance multiplied by 3, and the degrees of freedom parameter to 4. The values were hand-picked by trial and error to achieve smaller resulting energy distance.
@@ -757,10 +763,10 @@ Many interesting avenues for further research remain open:
 \chapter{Derivations}
 \label{appendix:derivations}
 
-\section{Stein kernel based on inverse multiquadratic kernel}
+\section{Stein kernel based on inverse multiquadric kernel}
 \label{appendix:derivations:imq-stein}
 
-When $k(x,y)$ is the inverse multiquadratic kernel~(\ref{eq:imq}) with $x, y \in \mathbb{R}^d$, the corresponding Stein kernel $k_P(x, y)$ is obtained from~(\ref{eq:deriv:stein-kernel}). We start by evaluating the terms in (\ref{eq:deriv:stein-kernel}). First, for $r \in \{1, \dots, d\}$,
+When $k(x,y)$ is the inverse multiquadric kernel~(\ref{eq:imq}) with $x, y \in \mathbb{R}^d$, the corresponding Stein kernel $k_P(x, y)$ is obtained from~(\ref{eq:deriv:stein-kernel}). We start by evaluating the terms in (\ref{eq:deriv:stein-kernel}). First, for $r \in \{1, \dots, d\}$,
 \begin{equation}
 \begin{aligned}
 \frac{\partial^2}{\partial x_r\,\partial y_r} k(x,y) 
