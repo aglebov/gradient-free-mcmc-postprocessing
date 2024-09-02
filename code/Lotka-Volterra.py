@@ -277,7 +277,7 @@ def rw_az_summary() -> pd.DataFrame:
 # %%
 rw_az_summary()
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Sample using Stan
 
 # %% [markdown]
@@ -1393,8 +1393,8 @@ def rw_energy_distance_naive(i_chain) -> np.ndarray:
 
 # %%
 indices_to_plot = {
-    'rw_thinned_idx': 'Stein',
-    'rw_st_log_idx': 'Stein log',
+    'rw_thinned_idx': 'Stein: linear space',
+    'rw_st_log_idx': 'Stein log space',
     'rw_naive': 'Naïve',
 }
 
@@ -1408,7 +1408,7 @@ def get_indices(name):
 
 
 # %%
-def plot_comparison(result_function, entries, y_label):
+def plot_comparison(result_function, entries, y_label, y_scale=None):
     fig = plt.figure(figsize=(15, 9), constrained_layout=True)
     axs = centered_subplots(fig, [3, 2])
     for j in range(len(theta_inits)):
@@ -1420,6 +1420,8 @@ def plot_comparison(result_function, entries, y_label):
         axs[j].set_title(f'Chain {j + 1}');
         axs[j].legend();
         axs[j].set_xscale('log');
+        if y_scale is not None:
+            axs[j].set_yscale(y_scale);
     return fig
 
 
@@ -1462,7 +1464,7 @@ def get_indices_ksd(name):
 
 # %%
 # %%time
-fig = plot_comparison(get_indices_ksd, indices_to_plot, y_label='Kernel Stein discrepancy')
+fig = plot_comparison(get_indices_ksd, indices_to_plot, y_label='Kernel Stein discrepancy', y_scale='log')
 fig.savefig(figures_path / 'lotka-volterra-stein-thinning-ksd.pdf');
 
 # %%
@@ -1480,7 +1482,7 @@ fig.savefig(figures_path / 'lotka-volterra-gf-thinning-energy-distance.pdf');
 
 # %%
 # %%time
-fig = plot_comparison(get_indices_ksd, indices_to_plot, y_label='Kernel Stein discrepancy')
+fig = plot_comparison(get_indices_ksd, indices_to_plot, y_label='Kernel Stein discrepancy', y_scale='log')
 fig.savefig(figures_path / 'lotka-volterra-gf-thinning-ksd.pdf');
 
 # %% [markdown]
