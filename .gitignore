@@ -1,23 +1,4 @@
 papers
 data
 
-report/build/*.aux
-report/build/*.bbl
-report/build/*.blg
-report/build/*.log
-report/build/*.synctex.gz
-report/build/*.toc
-report/build/*.bcf
-report/build/*.out
-report/build/*.run.xml
-report/svg-inkscape
-
-code/.venv
-code/build
-code/dist
-code/*.egg-info
-
-**/__pycache__
-**/.ipynb_checkpoints
-
 .vscode

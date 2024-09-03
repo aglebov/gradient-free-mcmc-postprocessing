@@ -1,2 +1,13 @@
 Coversheet.odt
 Coversheet.pdf
+
+build/*.aux
+build/*.bbl
+build/*.blg
+build/*.log
+build/*.synctex.gz
+build/*.toc
+build/*.bcf
+build/*.out
+build/*.run.xml
+svg-inkscape
