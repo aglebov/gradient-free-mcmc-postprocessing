@@ -39,10 +39,8 @@ from stein_thinning.stein import kmat
 
 from utils.ksd import calculate_ksd
 from utils.mvn import make_mvn_mixture
+from utils.paths import FIGURES_PATH, GENERATED_DATA_PATH
 from utils.plotting import centered_subplots, highlight_points, plot_density
-
-# %%
-figures_path = Path('../report') / 'figures'
 
 # %% [markdown]
 # ## Generate from a multivariate normal mixture model
@@ -111,7 +109,7 @@ plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Density', levels=
 axs[1].set_xlabel('$x_1$');
 axs[1].set_ylabel('$x_2$');
 
-fig.savefig(figures_path / 'gaussian-mixture-sample.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-sample.pdf');
 
 # %% [markdown]
 # Verify log-pdf against the JAX implementation:
@@ -365,7 +363,7 @@ for i, (idx, title) in enumerate(entries_report):
     ax.set_xlabel('$x_1$');
     ax.set_ylabel('$x_2$');
 
-fig.savefig('../report/figures/gaussian-mixture-thinned-20.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-thinned-20.pdf');
 
 # %% [markdown]
 # #### Energy distance
@@ -436,7 +434,7 @@ axs[1].set_ylabel('Kernel Stein discrepancy');
 axs[1].legend();
 axs[1].set_title('Kernel Stein discrepancy');
 
-fig.savefig(figures_path / 'gaussian-mixture-comparison.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-comparison.pdf');
 
 # %% [markdown]
 # #### Performance of weighted KDE
@@ -535,7 +533,7 @@ axs[1].set_xlabel('$x_1$');
 axs[1].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[1]);
 
-fig.savefig(figures_path / 'gaussian-mixture-laplace-proxy.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-laplace-proxy.pdf');
 
 # %%
 integrand = _make_stein_integrand(sample, gradient_q_laplace)
@@ -549,7 +547,7 @@ ax.set_yscale('log');
 ax.set_xlabel('$k_Q(x_i, x_j)$');
 ax.set_ylabel('Count');
 
-fig.savefig(figures_path / 'gaussian-mixture-kQ-hist.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-kQ-hist.pdf');
 
 # %%
 np.min(km_vals)
