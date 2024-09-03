@@ -102,3 +102,11 @@ def apply_along_axis_parallel(
         return np.concatenate(results, axis=1 - axis)
     else:
         return np.concatenate(results)
+
+
+def parallelise_for_unique(func, sample, client, row_chunk_size=200):
+    """Calculate gradients for samples"""
+    # we can save time by calculating gradients for unique samples only
+    unique_samples, inverse_index = np.unique(sample, axis=0, return_inverse=True)
+    res = apply_along_axis_parallel(func, 1, unique_samples, row_chunk_size, client)
+    return res[inverse_index]
