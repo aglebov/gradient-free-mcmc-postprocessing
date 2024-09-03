@@ -14,6 +14,8 @@ report/svg-inkscape
 
 code/.venv
 code/build
+code/dist
+code/*.egg-info
 
 **/__pycache__
 **/.ipynb_checkpoints
