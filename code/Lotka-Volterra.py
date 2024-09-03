@@ -27,6 +27,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import scipy
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
@@ -758,15 +759,6 @@ def rw_thinned_idx() -> list[np.ndarray]:
 #rw_thinned_idx.recalculate(persist=True);
 
 # %% [markdown]
-# This reproduces the results shown in Figure S20 in the Supplementary Material:
-
-# %%
-fig = plot_sample_thinned(rw_samples, rw_thinned_idx, titles, var_labels, n_points=n_points_display);
-fig.savefig(figures_path / 'lotka-volterra-stein-thinning.png', dpi=300);
-fig.suptitle('Results of applying Stein thinning to samples from the random-walk Metropolis-Hastings algorithm');
-
-
-# %% [markdown]
 # #### Log-transformation
 #
 # Since inference is performed in log-space, it is natural to try Stein thinning in log-space as well.
@@ -795,6 +787,15 @@ def rw_st_log_idx() -> list[np.ndarray]:
 # %%
 # %%time
 #rw_st_log_idx.recalculate(persist=True);
+
+# %% [markdown]
+# This reproduces the results shown in Figure S20 in the Supplementary Material:
+
+# %%
+fig = plot_sample_thinned(rw_samples, rw_st_log_idx, titles, var_labels, n_points=n_points_display);
+fig.savefig(figures_path / 'lotka-volterra-stein-thinning.png', dpi=300);
+fig.suptitle('Results of applying Stein thinning to samples from the random-walk Metropolis-Hastings algorithm');
+
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ### HMC sample
@@ -973,6 +974,13 @@ idx
 fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 highlight_points(rw_samples[0], idx, [(0, 1), (2, 3)], axs, var_labels, highlighted_point_size=4);
 
+# %%
+log_q = mvn.logpdf(rw_samples[0], mean=sample_mean, cov=sample_cov)
+gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(sample_cov), rw_samples[0] - sample_mean)
+
+# %%
+np.ptp(log_q - rw_log_p[0])
+
 # %% [markdown]
 # ### Student t proxy
 
@@ -1121,29 +1129,6 @@ fit
 # %%
 t_mu, t_scale, t_df = extract_t_params(fit.x, d)
 
-# %%
-sample_mode = rw_samples[0][np.argmax(rw_log_p[0])]
-fit2 = fit_mvt2(rw_samples[0], scale_bounds=(-20, 20), df_bounds=(2, 30), mu=sample_mode)
-fit2
-
-# %%
-t_mu = sample_mode
-t_scale = np.cov(rw_samples[0], rowvar=False, ddof=d) * np.exp(fit2.x[0])
-t_df = fit2.x[1]
-
-# %%
-t_mu
-
-# %%
-t_scale
-
-# %%
-t_df
-
-# %%
-t_df = np.round(t_df)
-t_df
-
 
 # %% [markdown]
 # The density of the multivaritate Student's t distribution is given by
@@ -1186,6 +1171,38 @@ def t_grad_log_pdf(x, mu, sigma, df):
 
 
 # %%
+log_q = stats.multivariate_t.logpdf(rw_samples[0], loc=t_mu, shape=t_scale, df=t_df)
+gradient_q = t_grad_log_pdf(rw_samples[0], t_mu, t_scale, t_df)
+thin_gf(rw_samples[0], rw_log_p[0], log_q, gradient_q, 100, range_cap=200)
+
+# %%
+np.ptp(log_q - rw_log_p[0])
+
+# %%
+sample_mode = rw_samples[0][np.argmax(rw_log_p[0])]
+fit2 = fit_mvt2(rw_samples[0], scale_bounds=(-20, 20), df_bounds=(2, 30), mu=sample_mode)
+fit2
+
+# %%
+t_mu = sample_mode
+t_scale = np.cov(rw_samples[0], rowvar=False, ddof=d) * np.exp(fit2.x[0])
+t_df = fit2.x[1]
+
+# %%
+t_mu
+
+# %%
+t_scale
+
+# %%
+t_df
+
+# %%
+t_df = np.round(t_df)
+t_df
+
+
+# %%
 def thin_gf_t(sample, log_p, t_mu, t_scale, t_df, thinned_size):
     log_q = stats.multivariate_t.logpdf(sample, loc=t_mu, shape=t_scale, df=t_df)
     gradient_q = t_grad_log_pdf(sample, t_mu, t_scale, t_df)
@@ -1195,6 +1212,14 @@ def thin_gf_t(sample, log_p, t_mu, t_scale, t_df, thinned_size):
 # %%
 idx = thin_gf_t(rw_samples[0], rw_log_p[0], t_mu, np.cov(rw_samples[0], rowvar=False, ddof=d) * 3, 4, 100)
 idx
+
+# %%
+log_q = stats.multivariate_t.logpdf(rw_samples[0], loc=t_mu, shape=np.cov(rw_samples[0], rowvar=False, ddof=d) * 3, df=4)
+gradient_q = t_grad_log_pdf(rw_samples[0], t_mu, np.cov(rw_samples[0], rowvar=False, ddof=d) * 3, d)
+thin_gf(rw_samples[0], rw_log_p[0], log_q, gradient_q, 100, range_cap=200)
+
+# %%
+np.ptp(log_q - rw_log_p[0])
 
 
 # %%
@@ -1244,6 +1269,43 @@ def rw_gf_t2_idx() -> list[np.ndarray]:
 
 # %%
 #rw_gf_t2_idx.recalculate(persist=True);
+
+# %%
+i = 0
+sample = rw_samples[i]
+sample_cov = np.cov(sample, rowvar=False, ddof=d)
+rescale_matrix = np.linalg.inv(scipy.linalg.sqrtm(sample_cov))
+sample_rescaled = np.einsum('kj,ij->ik', rescale_matrix, sample)
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+axs[0].scatter(sample[:, 0], sample[:, 1], s=1);
+axs[1].scatter(sample_rescaled[:, 0], sample_rescaled[:, 1], s=1);
+
+# %%
+ref_idx = np.argmax(rw_log_p[i])
+dists = cdist(sample_rescaled[ref_idx].reshape(1, -1), sample_rescaled).squeeze()
+prob_diff = rw_log_p[i] - rw_log_p[i][ref_idx]
+
+log_p_t = stats.multivariate_normal.logpdf(sample, mean=sample[ref_idx], cov=sample_cov)
+prob_diff_t = log_p_t - log_p_t[ref_idx]
+
+fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+axs[0].scatter(dists ** 2, prob_diff, s=1, label='Sample');
+axs[0].scatter(dists ** 2, prob_diff_t, s=1, label='Auxiliary');
+axs[0].set_xlabel('$\\|\\Sigma^{-1/2}(x - x^*) \\|^2$');
+axs[0].set_ylabel('$\\log p(x) - \\log p(x^*)$');
+axs[0].legend();
+
+axs[1].scatter(dists ** 2, prob_diff, s=1, label='Sample');
+axs[1].scatter(dists ** 2, prob_diff_t, s=1, label='Auxiliary');
+axs[1].set_xlabel('$\\|\\Sigma^{-1/2}(x - x^*) \\|^2$');
+axs[1].set_ylabel('$\\log p(x) - \\log p(x^*)$');
+axs[1].set_xlim([0, 1000]);
+axs[1].legend();
+
+# %%
+prob_diff_t
 
 # %% [markdown]
 # ## Sample with burn-in removed manually
@@ -1470,7 +1532,7 @@ fig.savefig(figures_path / 'lotka-volterra-stein-thinning-ksd.pdf');
 # %%
 indices_to_plot = {
     'rw_naive': 'Naïve',
-    'rw_thinned_idx': 'Stein',
+    'rw_st_log_idx': 'Stein',
     'rw_gf_t_idx': 'Gradient-free: t optimised',
     'rw_gf_t2_idx': 'Gradient-free: t fixed',
 }
