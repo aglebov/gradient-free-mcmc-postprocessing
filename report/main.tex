@@ -525,7 +525,7 @@ We evaluate the log-density of the chosen auxiliary distribution and the gradien
 \label{fig:gmm:thinned}}
 \end{figure}
 
-To see why the Laplace approximation fails in this case, recall that~(\ref{eq:k_P_Q:expanded}) can be written in the form~(\ref{eq:k_P_Q}) and note the multiplier $q(x) / p(x)$. In \Cref{fig:gmm:laplace-failure}, we plot the values $\log_{10} q(x) - \log_{10} p(x) = \log_{10} (q(x) / p(x))$ for points in the sample, and \Cref{fig:gmm:kQ:hist} shows the histogram of $|k_Q(x_i, x_j)|$. We can see that $q(x) - p(x)$ varies by about 15 orders of magnitude, while $|k_Q(x_i, x_j)|$ varies only by about 8 orders of magnitude, so it is clear that the scale of $q(x) - p(x)$ dominates the product
+To see why the Laplace approximation fails in this case, recall that~(\ref{eq:k_P_Q:expanded}) can be written in the form~(\ref{eq:k_P_Q}) and note the multiplier $q(x) / p(x)$. In \Cref{fig:gmm:laplace-failure}, we plot the values $\log_{10} q(x) - \log_{10} p(x) = \log_{10} (q(x) / p(x))$ for points in the sample, and \Cref{fig:gmm:kQ:hist} shows the histogram of $|k_Q(x_i, x_j)|$. We can see that $q(x) / p(x)$ varies by about 15 orders of magnitude, while $|k_Q(x_i, x_j)|$ varies only by about 8 orders of magnitude, therefore the scale of $q(x) / p(x)$ will tend to dominate the product
 \begin{equation*}
 \frac{q(x_i)}{p(x_i)} \frac{q(x_j)}{p(x_j)} k_Q(x_i, x_j),
 \end{equation*}
