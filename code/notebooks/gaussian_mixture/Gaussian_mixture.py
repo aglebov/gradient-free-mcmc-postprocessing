@@ -162,7 +162,7 @@ idx_naive = naive_thin(sample.shape[0], n_points_display)
 # If the gradient of the log-posterior is available, we can use it to perform thinning based on kernel Stein discrepancy:
 
 # %%
-idx_st = thin(sample, gradient, thinned_size)
+idx_st = thin(sample, gradient, thinned_size, preconditioner='med')
 
 # %% [markdown]
 # ### Gradient-free Stein thinning with a simple Gaussian proxy
@@ -198,7 +198,7 @@ gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(sample_cov), sample - sample_
 # We get the indices of the points to select:
 
 # %%
-idx_gf = thin_gf(sample, log_p, log_q, gradient_q, thinned_size)
+idx_gf = thin_gf(sample, log_p, log_q, gradient_q, thinned_size, preconditioner='med')
 
 # %% [markdown]
 # ### Gradient-free Stein thinning with a KDE proxy
@@ -233,7 +233,7 @@ def logpdf_and_score(kde, sample):
 log_q_kde, gradient_q_kde = logpdf_and_score(kde, sample)
 
 # %%
-idx_gf_kde = thin_gf(sample, log_p, log_q_kde, gradient_q_kde, thinned_size)
+idx_gf_kde = thin_gf(sample, log_p, log_q_kde, gradient_q_kde, thinned_size, preconditioner='med')
 
 # %% [markdown]
 # ### Gradient-free Stein thinning with a weighted KDE proxy
@@ -255,7 +255,7 @@ plot_density(lambda x: np.exp(wkde.logpdf(x.T)), axs[0], xlim, ylim, 'Weighted K
 plot_density(lambda x: np.exp(logpdf(x)), axs[1], xlim, ylim, 'Mixture density');
 
 # %%
-idx_gf_wkde = thin_gf(sample, log_p, log_q_wkde, gradient_q_wkde, thinned_size)
+idx_gf_wkde = thin_gf(sample, log_p, log_q_wkde, gradient_q_wkde, thinned_size, preconditioner='med')
 
 
 # %% [markdown]
@@ -288,7 +288,7 @@ log_q_laplace = mvn.logpdf(sample, mean=laplace_mean, cov=laplace_cov)
 gradient_q_laplace = -np.einsum('ij,kj->ki', np.linalg.inv(laplace_cov), sample - laplace_mean)
 
 # %%
-idx_gf_laplace = thin_gf(sample, log_p, log_q_laplace, gradient_q_laplace, thinned_size)
+idx_gf_laplace = thin_gf(sample, log_p, log_q_laplace, gradient_q_laplace, thinned_size, preconditioner='med')
 
 # %% [markdown]
 # ### Comparison
@@ -515,25 +515,28 @@ plot_density(lambda x: np.linalg.norm(jnp.apply_along_axis(wkde_grad, 1, x), axi
 # We have seen above that the Laplace approximation fails to produce a good proxy for this sample. Here we confirm that the problem again is that the ratio $q(x) / p(x)$ becomes very small for some points.
 
 # %%
-vals = np.concatenate([log_q - log_p, log_q_laplace - log_p])
+vals = np.concatenate([log_q - log_p, log_q_laplace - log_p] / np.log(10))
 vmin = np.min(vals)
 vmax = np.max(vals)
 
 fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True);
 
-scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=log_q_laplace - log_p, vmin=vmin, vmax=vmax);
-axs[0].set_title('Laplace approximation');
+scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=(log_q_laplace - log_p) /  np.log(10), vmin=vmin, vmax=vmax);
+axs[0].set_title('(a) Laplace approximation');
 axs[0].set_xlabel('$x_1$');
 axs[0].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[0]);
 
-scatter = axs[1].scatter(sample[:, 0], sample[:, 1], c=log_q - log_p, vmin=vmin, vmax=vmax);
-axs[1].set_title('Simple Gaussian');
+scatter = axs[1].scatter(sample[:, 0], sample[:, 1], c=(log_q - log_p) / np.log(10), vmin=vmin, vmax=vmax);
+axs[1].set_title('(b) Simple Gaussian');
 axs[1].set_xlabel('$x_1$');
 axs[1].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[1]);
 
 fig.savefig(FIGURES_PATH / 'gaussian-mixture-laplace-proxy.pdf');
+
+# %%
+np.min((log_q_laplace - log_p) /  np.log(10))
 
 # %%
 integrand = _make_stein_integrand(sample, gradient_q_laplace)
@@ -542,18 +545,43 @@ km_vals = km[np.triu_indices_from(km)]
 
 # %%
 fig, ax = plt.subplots(constrained_layout=True)
-ax.hist(km_vals, bins=100);
+ax.hist(np.abs(km_vals), bins=np.logspace(np.log10(5e-6),np.log10(400), 50));
+ax.set_xscale('log');
 ax.set_yscale('log');
-ax.set_xlabel('$k_Q(x_i, x_j)$');
+ax.set_xlabel('$|k_Q(x_i, x_j)|$');
 ax.set_ylabel('Count');
 
 fig.savefig(FIGURES_PATH / 'gaussian-mixture-kQ-hist.pdf');
 
 # %%
-np.min(km_vals)
+np.max(np.abs(km_vals))
 
 # %%
-np.max(km_vals)
+np.min(np.abs(km_vals))
 
 # %%
-np.exp(-35)
+integrand_gf = _make_stein_gf_integrand(sample, log_p, log_q_laplace, gradient_q_laplace)
+km_gf = kmat(integrand_gf, sample.shape[0])
+km_gf_vals = km_gf[np.triu_indices_from(km_gf)]
+first_selected_idx = np.argmin(np.diag(km_gf))
+first_iteration_obj = np.diag(km_gf) / 2
+second_iteration_obj = np.diag(km_gf) / 2 + km_gf[first_selected_idx, :]
+
+# %%
+fig, axs = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True);
+
+scatter = axs[0].scatter(sample[:, 0], sample[:, 1], c=np.log(first_iteration_obj) / np.log(10));
+axs[0].add_patch(plt.Circle(sample[np.argmin(first_iteration_obj)], 0.25, color='red', fill=False));
+axs[0].set_title('First iteration');
+axs[0].set_xlabel('$x_1$');
+axs[0].set_ylabel('$x_2$');
+fig.colorbar(scatter, ax=axs[0]);
+
+scatter = axs[1].scatter(sample[:, 0], sample[:, 1], c=np.log(second_iteration_obj) / np.log(10));
+axs[1].add_patch(plt.Circle(sample[np.argmin(second_iteration_obj)], 0.25, color='red', fill=False));
+axs[1].set_title('Second iteration');
+axs[1].set_xlabel('$x_1$');
+axs[1].set_ylabel('$x_2$');
+fig.colorbar(scatter, ax=axs[1]);
+
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-laplace-first-iterations.pdf');

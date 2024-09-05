@@ -14,4 +14,4 @@ def laplace_approximation(logpdf, x0):
 def gaussian_thin(sample, log_p, mean, cov, thinned_size, range_cap=200):
     log_q = mvn.logpdf(sample, mean=mean, cov=cov)
     gradient_q = -np.einsum('ij,kj->ki', np.linalg.inv(cov), sample - mean)
-    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size, range_cap=range_cap)
+    return thin_gf(sample, log_p, log_q, gradient_q, thinned_size, range_cap=range_cap, preconditioner='med')
