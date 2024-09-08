@@ -7,8 +7,8 @@ by implementing the idea presented in
 
 > 2. `Fisher, M. A., Oates, C. (2022). Gradient-free kernel Stein discrepancy. arXiv preprint arXiv:2207.02636.`
 
-We replicate the results from [1] for the Lotka-Volterra model in ``code/Lotka-Volterra.ipynb``.
+We replicate the results from [1] for the Lotka-Volterra model in ``code/lotka_volterra/Stein_thinning.ipynb``.
 
-``code/Gaussian_mixture.ipynb`` demonstrates using gradient-free kernel Stein density as proposed in [2] for a bivariate Gaussian mixture.
+``code/notebooks/gaussian_mixture/Gaussian_mixture.ipynb`` demonstrates using gradient-free kernel Stein density as proposed in [2] for a bivariate Gaussian mixture.
 
-The ``code/examples`` directory also contains several examples of using the relevant Python packages.
+The ``code/notebooks/examples`` directory also contains several examples of using the relevant Python packages.
