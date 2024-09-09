@@ -363,7 +363,7 @@ for i, (idx, title) in enumerate(entries_report):
     ax.set_xlabel('$x_1$');
     ax.set_ylabel('$x_2$');
 
-fig.savefig(FIGURES_PATH / 'gaussian-mixture-thinned-20.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-thinned-20.eps');
 
 # %% [markdown]
 # #### Energy distance
@@ -434,7 +434,7 @@ axs[1].set_ylabel('Kernel Stein discrepancy');
 axs[1].legend();
 axs[1].set_title('Kernel Stein discrepancy');
 
-fig.savefig(FIGURES_PATH / 'gaussian-mixture-comparison.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-comparison.eps');
 
 # %% [markdown]
 # #### Performance of weighted KDE
@@ -533,7 +533,7 @@ axs[1].set_xlabel('$x_1$');
 axs[1].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[1]);
 
-fig.savefig(FIGURES_PATH / 'gaussian-mixture-laplace-proxy.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-laplace-proxy.eps');
 
 # %%
 np.min((log_q_laplace - log_p) /  np.log(10))
@@ -551,7 +551,7 @@ ax.set_yscale('log');
 ax.set_xlabel('$|k_Q(x_i, x_j)|$');
 ax.set_ylabel('Count');
 
-fig.savefig(FIGURES_PATH / 'gaussian-mixture-kQ-hist.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-kQ-hist.eps');
 
 # %%
 np.max(np.abs(km_vals))
@@ -584,4 +584,4 @@ axs[1].set_xlabel('$x_1$');
 axs[1].set_ylabel('$x_2$');
 fig.colorbar(scatter, ax=axs[1]);
 
-fig.savefig(FIGURES_PATH / 'gaussian-mixture-laplace-first-iterations.pdf');
+fig.savefig(FIGURES_PATH / 'gaussian-mixture-laplace-first-iterations.eps');
