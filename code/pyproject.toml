@@ -33,6 +33,7 @@ dependencies = [
     "numdifftools",
     "scikit-learn",
     "coiled",
+    "cachetools",
 ]
 requires-python = ">=3.9"
 

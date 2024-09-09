@@ -8,13 +8,14 @@ from typing import Any, Callable, Iterable, Optional
 import numpy as np
 import pandas as pd
 
+import cachetools
+
 import jax
 import jax.numpy as jnp
 
 
 logger = logging.getLogger(__name__)
 cache_dir = Path('.')
-lru_cache_max_size = None
 
 
 def get_path(entry_name: str, expected_type: type) -> Path:
@@ -89,6 +90,9 @@ def read_obj(entry_name: str, expected_type: type) -> Any:
             return pickle.load(f)
 
 
+cache = cachetools.LRUCache(maxsize=32)
+
+
 class CacheFunc:
 
     def __init__(
@@ -144,7 +148,7 @@ class CacheFunc:
                 save_obj(entry_name, res)
             return res
 
-    @lru_cache(lru_cache_max_size)
+    @cachetools.cached(cache=cache)
     def __call__(self, *args):
         entry_name = self._filename_gen(self._func.__name__, *args)
         filepath = get_path(entry_name, self._item_type)
