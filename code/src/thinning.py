@@ -6,7 +6,7 @@ from stein_thinning.thinning import thin_gf
 
 
 def laplace_approximation(logpdf, x0):
-    res = minimize(lambda x: -logpdf(x), x0, method='BFGS', options={'gtol': 1e-3})
+    res = minimize(lambda x: -logpdf(x), x0, method='BFGS', options={'gtol': 2e-3})
     assert res.success
     return res.x, res.hess_inv
 

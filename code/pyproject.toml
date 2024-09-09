@@ -19,9 +19,20 @@ classifiers = [
 keywords = ["mcmc", "Stein", "thinning", "KSD"]
 dependencies = [
     "numpy",
+    "pandas",
     "scipy",
     "matplotlib",
+    "seaborn",
     "jupyterlab",
+    "pystan",
+    "arviz",
+    "jax",
+    "dask[distributed]",
+    "stein_thinning",
+    "dcor",
+    "numdifftools",
+    "scikit-learn",
+    "coiled",
 ]
 requires-python = ">=3.9"
 
