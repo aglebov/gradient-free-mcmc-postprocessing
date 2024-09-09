@@ -12,3 +12,8 @@ We replicate the results from [1] for the Lotka-Volterra model in ``code/lotka_v
 ``code/notebooks/gaussian_mixture/Gaussian_mixture.ipynb`` demonstrates using gradient-free kernel Stein density as proposed in [2] for a bivariate Gaussian mixture.
 
 The ``code/notebooks/examples`` directory also contains several examples of using the relevant Python packages.
+
+To run the code, navigate to the `code` directory, create and activate a virtual environment and run the following command:
+```
+pip install -e .
+```
