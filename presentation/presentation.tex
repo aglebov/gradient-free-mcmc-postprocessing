@@ -26,6 +26,33 @@
 
 \frame{\titlepage}
 
+\begin{frame}
+\frametitle{Overview}
+
+ \begin{block}{Problem}
+	Develop a computationally efficient algorithm for summarising the output of a Markov Chain Monte Carlo simulation.
+ \end{block}
+ 
+ \vskip -0.5\bigskipamount
+ 
+ \begin{block}{Motivation}
+	Uncertainty quantification in a multi-stage simulation of the functioning of the human heart.
+ \end{block}
+ 
+ \vskip -0.5\bigskipamount
+ 
+ \begin{block}{Existing solution}
+	The optimisation algorithm of \cite{riabizOptimalThinningMCMC2022} to select a subsample of MCMC output that minimises a measure of proximity to the target distribution (kernel Stein discrepancy), which requires the gradients of the log-posterior and is thus expensive.
+ \end{block}
+ 
+ \vskip -0.5\bigskipamount
+ 
+ \begin{block}{Proposal}
+	Modify the algorithm of \cite{riabizOptimalThinningMCMC2022} to use the gradient-free kernel Stein discrepancy of \cite{fisherGradientFreeKernelStein2024}.
+ \end{block}
+
+\end{frame}
+
 \section{Background}
 
 \subsection{Markov Chain Monte Carlo (MCMC)}
@@ -50,6 +77,21 @@ A sample of size $n$ is a realisation $(x_i)_{i=0}^n$ of the first $n$ variables
 \end{frame}
 
 \subsection{Challenges of running MCMC}
+
+\begin{frame}
+\frametitle{Challenges of running MCMC}
+
+\begin{enumerate}
+\item The choice of a starting point for a chain.
+\item Exploring the modes of a multimodal distribution.
+\item Calibrating the scale of the proposal distribution.
+\item Convergence detection.
+\item Detecting and eliminating the burn-in.
+\item Autocorrelation between samples in a chain.
+\item Compressing sample for further expensive processing.
+\end{enumerate}
+
+\end{frame}
 
 \subsection{Stein thinning}
 
