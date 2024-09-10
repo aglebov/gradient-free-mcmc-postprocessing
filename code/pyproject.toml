@@ -28,7 +28,7 @@ dependencies = [
     "arviz",
     "jax",
     "dask[distributed]",
-    "stein_thinning",
+    "stein_thinning @ git+https://github.com/wilson-ye-chen/stein_thinning",
     "dcor",
     "numdifftools",
     "scikit-learn",
