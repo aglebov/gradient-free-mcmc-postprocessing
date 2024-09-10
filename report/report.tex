@@ -416,11 +416,11 @@ $$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-
 \KwData{Sample $(x_i)_{i=1}^n$ from MCMC, target log-densities $(\log p(x_i))_{i=1}^n$, auxiliary log-densities $(\log q(x_i))_{i=1}^n$, auxiliary gradients $(\nabla \log q(x_i))_{i=1}^n$, desired cardinality $m \in \mathbb{N}$.}
 \KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m$ where $\pi(j) \in \{1, \dots, n\}$.}
 Initialise an array $A[i]$ of size $n$ \;
-Set $A[i] \leftarrow k_{P,Q}(x_i, x_i)$ for $i = 1, \dots, n$\;
+Set $A[i] = k_{P,Q}(x_i, x_i)$ for $i = 1, \dots, n$\;
 Set $\pi(1) = \argmin_i A[i]$ \;
 
 \For{$j = 2, \dots, m$}{
-Update $A[i] \leftarrow A[i] + 2 k_{P,Q}(x_{\pi(j - 1)}, x_i)$ for $i = 1, \dots, n$\;
+Update $A[i] = A[i] + 2 k_{P,Q}(x_{\pi(j - 1)}, x_i)$ for $i = 1, \dots, n$\;
 Set $\pi(j) = \argmin_i A[i]$ \;
 }
 \end{algorithm}

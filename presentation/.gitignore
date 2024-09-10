@@ -1,0 +1,12 @@
+build/*.aux
+build/*.bbl
+build/*.blg
+build/*.log
+build/*.synctex.gz
+build/*.toc
+build/*.bcf
+build/*.out
+build/*.run.xml
+build/*.nav
+build/*.snm
+svg-inkscape

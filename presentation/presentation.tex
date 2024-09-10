@@ -1,0 +1,194 @@
+\documentclass{beamer}
+
+\usepackage{mathtools}
+\usepackage[ruled]{algorithm2e}
+\usepackage[authoryear,round]{natbib}
+
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\usetheme{Madrid}
+
+\title[Gradient-Free Optimal Postprocessing]{Gradient-Free Optimal Postprocessing \\ of MCMC Output}
+\author{Artem Glebov}
+\institute{King's College London}
+\date{2024}
+
+\AtBeginSection[]
+{
+  \begin{frame}
+    \frametitle{Table of Contents}
+    \tableofcontents[currentsection]
+  \end{frame}
+}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\section{Background}
+
+\subsection{Markov Chain Monte Carlo (MCMC)}
+
+\begin{frame}
+\frametitle{Markov Chain Monte Carlo}
+Markov chain Monte Carlo (MCMC) are a popular class of algorithms for sampling from complex probability distributions.
+
+Given a target distribution $P$ defined on a state space $\mathcal{X}$, an MCMC algorithm proceeds by constructing a chain of random variables $(X_i)_{i=0}^\infty$  which satisfy the Markov property:
+\begin{equation*}
+\mathbb{P}(X_{i+1}\in A | X_0, \dots, X_i) = \mathbb{P}(X_{i+1}\in A | X_i) \quad\text{for any measurable } A \in \mathcal{X}.
+\end{equation*}
+Viewed as a function, the right-hand side above is called the Markov transition kernel and is denoted 
+\begin{equation}
+R(A | x) \coloneq \mathbb{P}(X_{i+1}\in A | X_i = x).
+\end{equation}
+The transition kernel $R$ is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $P$:
+\begin{equation*}
+P_i \xrightarrow[]{d} P \quad\text{as}\quad i \to \infty.
+\end{equation*}
+A sample of size $n$ is a realisation $(x_i)_{i=0}^n$ of the first $n$ variables in the chain, which is constructed sequentially.
+\end{frame}
+
+\subsection{Challenges of running MCMC}
+
+\subsection{Stein thinning}
+
+\subsection{Gradient-free kernel Stein discrepancy}
+
+\section{Methodology}
+
+\subsection{Algorithm}
+
+\begin{frame}
+
+\begin{algorithm}[H]
+\caption{Gradient-free Stein thinning.}\label{alg:gf}
+\KwData{
+\begin{itemize}
+\item[] sample $(x_i)_{i=1}^n$ from MCMC,
+\item[] target log-densities $(\log p(x_i))_{i=1}^n$
+\item[] auxiliary log-densities $(\log q(x_i))_{i=1}^n$
+\item[] auxiliary gradients $(\nabla \log q(x_i))_{i=1}^n$
+\item[] desired cardinality $m \in \mathbb{N}$
+\end{itemize}
+}
+\KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m$ where $\pi(j) \in \{1, \dots, n\}$.}
+
+\For{$j = 1, \dots, m$}{
+$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_{P,Q}(x_{\pi(j')}, x_i)$$
+}
+\end{algorithm}
+
+\end{frame}
+
+\begin{frame}
+
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\caption{Optimised gradient-free Stein thinning.}\label{alg:gf:optimised}
+\KwData{
+\begin{itemize}
+\item[] sample $(x_i)_{i=1}^n$ from MCMC,
+\item[] target log-densities $(\log p(x_i))_{i=1}^n$
+\item[] auxiliary log-densities $(\log q(x_i))_{i=1}^n$
+\item[] auxiliary gradients $(\nabla \log q(x_i))_{i=1}^n$
+\item[] desired cardinality $m \in \mathbb{N}$.
+\end{itemize}
+}
+\KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m$ where $\pi(j) \in \{1, \dots, n\}$.}
+Initialise an array $A[i]$ of size $n$ \;
+Set $A[i] = k_{P,Q}(x_i, x_i)$ for $i = 1, \dots, n$\;
+Set $\pi(1) = \argmin_i A[i]$ \;
+
+\For{$j = 2, \dots, m$}{
+Update $A[i] = A[i] + 2 k_{P,Q}(x_{\pi(j - 1)}, x_i)$ for $i = 1, \dots, n$\;
+Set $\pi(j) = \argmin_i A[i]$ \;
+}
+\end{algorithm}
+
+\end{frame}
+
+\subsection{Evaluation}
+
+\section{Results}
+
+\subsection{Bivariate Gaussian mixture}
+
+\subsection{Lotka-Volterra inverse problem}
+
+\section{Conclusions}
+
+\begin{frame}
+\frametitle{Contribution}
+
+The project makes three contributions:
+\begin{itemize}
+\item implementation of the gradient-free Stein thinning algorithm in the Python library \texttt{stein-thinning},
+\item evaluation of the performance of the proposed algorithm,
+\item improvement of the computational efficiency of the existing Stein thinning algorithm from $O(nm^2)$ to $O(nm)$, where $n$ is the input sample size and $m$ is the desired thinned sample size.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Conclusions}
+
+\begin{itemize}
+\item The gradient-free approach is feasible and performs similarly to the Stein thinning algorithm of \cite{riabizOptimalThinningMCMC2022} for small thinned sample sizes,
+\item The performance of the algorithm depends crucially on the choice of the auxiliary distribution. For example, even in the highly favourable setting of i.i.d.\ samples from a Gaussian mixture, choosing the auxiliary distribution based on the Laplace approximation fails to produce a thinned sample.
+\item The simple multivariate Gaussian distribution using the sample mean and covariance offered a good starting point in our experiments, however bespoke treatment might be required for more complex problems.
+\item In deciding whether to use the new algorithm as opposed to the gradient-based approach, the effort involved in selecting a good auxiliary distribution must be weighed against the computational cost of obtaining gradients.
+\end{itemize}
+
+\end{frame}
+
+\section{Further Research}
+
+\begin{frame}
+\frametitle{Further Research}
+\begin{itemize}
+
+\item Evaluate the choices of KDE kernels other than Gaussian for constructing the auxiliary distribution.
+
+\item Parallelise the computation of KDE.
+
+\item Perform thinning in a lower-dimensional space.
+
+\item Investigate the behaviour of Stein thinning for large thinned sample sizes.
+
+\item Compare the performance of the approaches in terms of estimating the true parameters of the Lotka-Volterra model.
+
+\item Run an experiment with randomised starting points.
+
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Further Research (continued)}
+
+\begin{itemize}
+
+\item Repeat the experiments with more advanced MCMC algorithms. 
+
+\item Check how running a gradient-free MCMC sampling algorithm (such the random-walk Metropolis-Hastings) followed by Stein thinning of the sample compares to running a gradient-based sampling algorithm (e.g. HMC).
+
+\item Provide theoretical justification for gradient-free Stein thinning.
+
+\item Explore other gradient-free alternatives.
+
+\end{itemize}
+
+\end{frame}
+
+\section{Bibliography}
+
+\begin{frame}
+\frametitle{Bibliography}
+
+\bibliographystyle{../report/plainnat_modified}
+\bibliography{../report/biblio}
+
+\end{frame}
+
+\end{document}
