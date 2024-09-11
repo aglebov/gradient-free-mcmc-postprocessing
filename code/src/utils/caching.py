@@ -177,7 +177,10 @@ class CacheFunc:
             yield self.__call__(i)
 
 
-def cached[T](
+ItemType = Any
+
+
+def cached(
         *,
         item_type: Optional[type] = None,
         recalculate: bool = False,
@@ -186,7 +189,7 @@ def cached[T](
         filename_gen: Optional[Callable[[str, int], str]] = None,
         batch: bool = False,
         batch_size: Optional[int] = None,
-) -> Callable[[Callable[[], Iterable[T]]], Callable[[int], T]]:
+) -> Callable[[Callable[[], Iterable[ItemType]]], Callable[[int], ItemType]]:
     """Decorator adding caching on disk to functions that batch calculation for multiple items
 
     Parameters
@@ -208,7 +211,7 @@ def cached[T](
 
     Returns
     -------
-    Callable[[Callable[[], Iterable[T]]], Callable[[int], T]]
+    Callable[[Callable[[], Iterable[ItemType]]], Callable[[int], ItemType]]
         decorator function
     """
     if filename_gen is None:
