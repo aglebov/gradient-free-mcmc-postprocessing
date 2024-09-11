@@ -4,6 +4,7 @@
 \usepackage[ruled]{algorithm2e}
 \usepackage[authoryear,round]{natbib}
 
+\newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
 
@@ -66,9 +67,9 @@ Given a target distribution $P$ defined on a state space $\mathcal{X}$, an MCMC 
 \mathbb{P}(X_{i+1}\in A | X_0, \dots, X_i) = \mathbb{P}(X_{i+1}\in A | X_i) \quad\text{for any measurable } A \in \mathcal{X}.
 \end{equation*}
 Viewed as a function, the right-hand side above is called the Markov transition kernel and is denoted 
-\begin{equation}
+\begin{equation*}
 R(A | x) \coloneq \mathbb{P}(X_{i+1}\in A | X_i = x).
-\end{equation}
+\end{equation*}
 The transition kernel $R$ is selected so that it is easy to sample from and to ensure asymptotic convergence to the target distribution $P$:
 \begin{equation*}
 P_i \xrightarrow[]{d} P \quad\text{as}\quad i \to \infty.
@@ -95,11 +96,236 @@ A sample of size $n$ is a realisation $(x_i)_{i=0}^n$ of the first $n$ variables
 
 \subsection{Stein thinning}
 
+\begin{frame}
+\frametitle{Thinning}
+
+\begin{block}{Problem}
+Given MCMC output $(x_i)_{i=1}^n$ of length $n$, identify $m \ll n$ indices $\pi(j) \in \{1,\dots, n\}$ with $j\in\{1, \dots, m\}$, such that the approximation provided by the subset of samples
+\begin{equation*}
+\frac{1}{m} \sum_{j=1}^m \delta(x_{\pi(j)})
+\label{eq:thinned-sample}
+\end{equation*}
+is closest to the target distribution.
+\end{block}
+
+We need a measure of proximity of the selected subsample to the target distribution.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Measure of proximity}
+
+\begin{block}{Integral probability metric}
+An integral probability metric between two distributions $P$ and $P'$ is defined as
+\begin{equation*}
+\mathcal{D}_{\mathcal{F}}(P, P') \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff P' \right|,
+\label{eq:ipm}
+\end{equation*}
+where $\mathcal{X}$ is a measurable space on which both $P$ and $P'$ are defined and $\mathcal{F}$ is a set of test functions.
+\end{block}
+
+\only<1>{
+The metric is said to be \textit{measure-determining} if
+\begin{equation*}
+\mathcal{D}_{\mathcal{F}}(P, P') = 0 \quad \text{iff} \quad P = P',
+\end{equation*}
+and it offers \textit{convergence control} if 
+\begin{equation*}
+\mathcal{D}_{\mathcal{F}}(P, P'_m) \to 0 \quad \text{implies} \quad P'_m \xrightarrow[]{d} P
+\end{equation*}
+as $m \to \infty$, for any sequence of distributions $P'_m$.
+}
+\only<2>{
+However, it is \alert{difficult to compute} in practice:
+\begin{itemize}
+\item the integral $\int_\mathcal{X} f \diff P$ is often intractable,
+\item the supremum requires optimisation.
+\end{itemize}
+}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Stein discrepancy}
+
+\begin{block}{Integral probability metric}
+An integral probability metric between two distributions $P$ and $P'$ is defined as
+\begin{equation*}
+\mathcal{D}_{\mathcal{F}}(P, P') \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff P' \right|,
+\label{eq:ipm}
+\end{equation*}
+where $\mathcal{X}$ is a measurable space on which both $P$ and $P'$ are defined and $\mathcal{F}$ is a set of test functions.
+\end{block}
+
+\begin{block}{Idea}
+
+Avoid the need to evaluate $\int_\mathcal{X} f \diff P$ by choosing a set of functions $\mathcal{F}$ such that $\int_\mathcal{X} f \diff P = 0$ for all $f \in \mathcal{F}$.
+
+\end{block}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Stein discrepancy (continued)}
+
+\cite{gorhamMeasuringSampleQuality2015} observed that the infinitesimal generator of a Markov process $(Z_t)_{t \geq 0}$ given by
+\begin{equation*}
+(\mathcal{L}u)(x) \coloneq \lim_{t \to 0} \frac{\mathbb{E}[u(Z_t) | Z_0 = x] - u(x)}{t} \quad \text{for } u:\mathbb{R}^d \to \mathbb{R}
+\end{equation*}
+satisfies
+\begin{equation*}
+\mathbb{E}[(\mathcal{L} u) (Z)] = 0
+\end{equation*}
+under mild conditions on $\mathcal{L}$ and $u$.
+
+In the specific case of an overdamped Langevin diffusion
+$$\diff Z_t = \frac{1}{2} \nabla \log p(Z_t) \diff t + \diff W_t,$$
+where $p$ is the density of $P$ and $W_t$ is the standard Brownian motion, the infinitesimal generator becomes
+$$(\mathcal{L}_P u)(x) = \frac{1}{2} \langle \nabla u(x), \nabla \log p(x)\rangle + \frac{1}{2}\langle \nabla, \nabla u(x) \rangle.$$
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Stein discrepancy (continued)}
+
+The infinitesimal generator of an overdamped Langevin diffusion:
+$$(\mathcal{L}_P u)(x) = \frac{1}{2} \langle \nabla u(x), \nabla \log p(x)\rangle + \frac{1}{2}\langle \nabla, \nabla u(x) \rangle.$$
+
+Denoting $g  = \frac{1}{2}\nabla u$, \cite{gorhamMeasuringSampleQuality2015} obtain the Stein operator
+\begin{equation*}
+\mathcal{A}_P g \coloneq \langle g, \nabla \log p \rangle + \langle \nabla, g \rangle = \langle p^{-1}\nabla, p g \rangle,
+\label{eq:stein-operator}
+\end{equation*}
+and rewrite the expression for the integral probability metric as
+\begin{equation*}
+\mathcal{D}_{P, \mathcal{G}}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff P' \right|
+\label{eq:stein-discrepancy-g}
+\end{equation*}
+for a suitably chosen set $\mathcal{G}$.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Stein discrepancy (continued)}
+
+Using the Langevin Stein operator, the integral probability metric specialises to
+\begin{block}{Stein discrepancy}
+\begin{equation*}
+\mathcal{D}_{P, \mathcal{G}}(P') = \sup_{g \in \mathcal{G}}\left|\int_\mathcal{X} \mathcal{A}_P g \diff P' \right|
+\end{equation*}
+\end{block}
+
+The difficulty evaluating the supremum still remains.
+
+\begin{block}{Idea}
+Employ the kernel trick to eliminate the supremum in the expression for the integral probability metric.
+\end{block}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Reproducing kernel Hilbert space}
+
+A \textit{Hilbert space} is a vector space $V$ equipped with the inner product operation $\langle \cdot, \cdot \rangle$ and its induced norm $\|\cdot\|$ satisfying $\|v\|^2 = \langle v, v \rangle$ for all $v \in V$, if it is complete:
+\begin{equation*}
+\sum_{i=1}^\infty \|v_i\| < \infty \quad \text{implies} \quad \sum_{i=1}^\infty v_i \in V
+\end{equation*}
+for any sequence $v_i \in V$.
+
+A Hilbert space $\mathcal{H}$ of real-valued functions defined on a set $\mathcal{X}$ is called a \textit{reproducing kernel Hilbert space (RKHS)} if there exists a function $k: \mathcal{X} \times \mathcal{X} \to \mathbb{R}$ such that:
+\begin{itemize}
+\item for every $x \in \mathcal{X}$, the function $k(x, \cdot)$ belongs to $\mathcal{H}$,
+\item $k$ satisfies the reproducing property $\langle f(\cdot), k(\cdot, x)\rangle = f(x)$ for any $f \in \mathcal{H}$ and $x \in \mathcal{X}$.
+\end{itemize}
+
+We denote $\mathcal{H}(k)$ the RKHS with kernel $k$.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Kernel Stein discrepancy}
+
+Taking the unit-ball in a Cartesian product of $d$ copies $\mathcal{H}(k)$
+\begin{equation*}
+\mathcal{G} \coloneq \left\{ \mathrm{g} : \mathbb{R}^d \to \mathbb{R}^d \left| \sum_{i=1}^d \|g_i\|^2_{\mathcal{H}(k)} \leq 1 \right.\right\},
+\label{eq:unit-ball}
+\end{equation*}
+Proposition~2 in \cite{gorhamMeasuringSampleQuality2017} shows that the Stein discrepancy becomes
+\begin{equation*}
+\mathcal{D}_{P}^2(P') \coloneq \mathcal{D}_{P, \mathcal{G}}(P') = \iint_\mathcal{X} k_P(x, y) \diff p'(x) \diff p'(y),
+\label{eq:stein-discrepancy-sqrt-expectation}
+\end{equation*}
+where $p'$ is the density of $P'$, and $k_P(x, y)$ is given by
+\begin{equation*}
+\begin{aligned}
+k_P(x, y) \coloneq 
+&(\nabla_x\cdot\nabla_y) k(x,y) \\
+&+ \langle \nabla_x k(x, y), \nabla_y \log p(y) \rangle + \langle \nabla_y k(x, y), \nabla_x \log p(x) \rangle \\
+&+ k(x, y) \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle.
+\label{eq:deriv:stein-kernel}
+\end{aligned}
+\end{equation*}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Kernel Stein discrepancy (continued)}
+
+\begin{block}{Kernel Stein discrepancy (KSD)}
+\begin{equation*}
+\mathcal{D}_{P}^2(P') \coloneq \iint_\mathcal{X} k_P(x, y) \diff p'(x) \diff p'(y),
+\end{equation*}
+
+\end{block}
+
+If $P'$ is the discrete distribution, the evaluation of KSD is a straightforward average of elements in the Gram matrix of the kernel $k_P$:
+\begin{equation*}
+\mathcal{D}_{P}^2\left(\frac{1}{n} \sum_{i=1}^n \delta(x_i)\right) = \frac{1}{n^2} \sum_{i,j=1}^n k_P(x_i, x_j),
+\label{eq:ksd:discrete}
+\end{equation*}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Inverse multiquadric kernel}
+
+The common choice of the kernel $k$ is the inverse multiquadric kernel (IMQ)
+\begin{equation*}
+k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta.
+\end{equation*}
+
+When $\beta \in (-1, 0)$ and $\Gamma = I$, \cite{gorhamMeasuringSampleQuality2017} demonstrate that $\mathcal{D}_{P}(P')$ provides convergence control (Theorem 8). Theorem 4 in \cite{chenSteinPointMarkov2019} justifies the introduction of $\Gamma$ in IMQ.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Stein thinning}
+
+\cite{riabizOptimalThinningMCMC2022} propose a greedy algorithm to select points from the sample that minimise the KSD at each iteration:
+
+\begin{algorithm}[H]
+\caption{Stein thinning.}\label{alg:cap}
+\KwData{
+\begin{itemize}
+\item[] sample $(x_i)_{i=1}^n$ from MCMC,
+\item[] gradients $(\nabla \log p(x_i))_{i=1}^n$
+\item[] desired cardinality $m \in \mathbb{N}$
+\end{itemize}
+}
+\KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m$ where $\pi(j) \in \{1, \dots, n\}$.}
+
+\For{$j = 1, \dots, m$}{
+$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_P(x_{\pi(j')}, x_i)$$
+}
+\end{algorithm}
+
+\end{frame}
+
 \subsection{Gradient-free kernel Stein discrepancy}
 
 \section{Methodology}
 
-\subsection{Algorithm}
+\subsection{Proposed algorithm}
 
 \begin{frame}
 
@@ -150,7 +376,7 @@ Set $\pi(j) = \argmin_i A[i]$ \;
 
 \end{frame}
 
-\subsection{Evaluation}
+\subsection{Energy distance}
 
 \section{Results}
 
@@ -223,10 +449,12 @@ The project makes three contributions:
 
 \end{frame}
 
-\section{Bibliography}
+\section{References}
 
-\begin{frame}
-\frametitle{Bibliography}
+\begin{frame}[allowframebreaks]
+\frametitle{References}
+
+\fontsize{10pt}{12}\selectfont
 
 \bibliographystyle{../report/plainnat_modified}
 \bibliography{../report/biblio}
