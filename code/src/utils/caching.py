@@ -1,4 +1,4 @@
-from functools import lru_cache, wraps
+from functools import wraps
 import logging
 from pathlib import Path
 import pickle
@@ -15,79 +15,82 @@ import jax.numpy as jnp
 
 
 logger = logging.getLogger(__name__)
-cache_dir = Path('.')
 
 
-def get_path(entry_name: str, expected_type: type) -> Path:
-    """Construct path for persisting an entry of a given type
+class Persister:
+    def __init__(self, cache_dir):
+        self.cache_dir = cache_dir
 
-    Parameters
-    ----------
-    entry_name: str
-        name of the entry
-    expected_type: type
-        type of the entry
+    def get_path(self, entry_name: str, expected_type: type) -> Path:
+        """Construct path for persisting an entry of a given type
 
-    Returns
-    -------
-    Path
-        path to the file on disk
-    """
-    if expected_type is np.ndarray:
-        return cache_dir / f'{entry_name}.npy'
-    else:
-        return cache_dir / entry_name
+        Parameters
+        ----------
+        entry_name: str
+            name of the entry
+        expected_type: type
+            type of the entry
 
-
-def save_obj(entry_name: str, obj: Any):
-    """Persist entry on disk
-
-    Parameters
-    ----------
-    entry_name: str
-        name of the entry
-    obj: Any
-        entry object to persist
-    """
-    filepath = get_path(entry_name, type(obj))
-    logger.debug('Writing %s', filepath)
-    if isinstance(obj, np.ndarray):
-        np.save(filepath, obj, allow_pickle=False)
-    elif isinstance(obj, pd.DataFrame):
-        obj.to_csv(filepath)
-    elif isinstance(obj, jax.Array):
-        jnp.save(filepath, obj, allow_pickle=False)
-    else:
-        with open(filepath, 'wb') as f:
-            pickle.dump(obj, f)
+        Returns
+        -------
+        Path
+            path to the file on disk
+        """
+        if expected_type is np.ndarray:
+            return self.cache_dir / f'{entry_name}.npy'
+        else:
+            return self.cache_dir / entry_name
 
 
-def read_obj(entry_name: str, expected_type: type) -> Any:
-    """Read persisted entry from disk
+    def save_obj(self, entry_name: str, obj: Any):
+        """Persist entry on disk
 
-    Parameters
-    ----------
-    entry_name: str
-        name of the entry
-    expected_type: type
-        type of the entry
+        Parameters
+        ----------
+        entry_name: str
+            name of the entry
+        obj: Any
+            entry object to persist
+        """
+        filepath = self.get_path(entry_name, type(obj))
+        logger.debug('Writing %s', filepath)
+        if isinstance(obj, np.ndarray):
+            np.save(filepath, obj, allow_pickle=False)
+        elif isinstance(obj, pd.DataFrame):
+            obj.to_csv(filepath)
+        elif isinstance(obj, jax.Array):
+            jnp.save(filepath, obj, allow_pickle=False)
+        else:
+            with open(filepath, 'wb') as f:
+                pickle.dump(obj, f)
 
-    Returns
-    -------
-    Any
-        entry object read from disk
-    """
-    filepath = get_path(entry_name, expected_type)
-    logger.debug('Reading %s', filepath)
-    if expected_type is np.ndarray:
-        return np.load(filepath, allow_pickle=False)
-    elif expected_type is pd.DataFrame:
-        return pd.read_csv(filepath, index_col=0)
-    elif expected_type is jax.Array:
-        return jnp.load(filepath, allow_pickle=False)
-    else:
-        with open(filepath, 'rb') as f:
-            return pickle.load(f)
+
+    def read_obj(self, entry_name: str, expected_type: type) -> Any:
+        """Read persisted entry from disk
+
+        Parameters
+        ----------
+        entry_name: str
+            name of the entry
+        expected_type: type
+            type of the entry
+
+        Returns
+        -------
+        Any
+            entry object read from disk
+        """
+        filepath = self.get_path(entry_name, expected_type)
+        logger.debug('Reading %s', filepath)
+        if expected_type is np.ndarray:
+            return np.load(filepath, allow_pickle=False)
+        elif expected_type is pd.DataFrame:
+            return pd.read_csv(filepath, index_col=0)
+        elif expected_type is jax.Array:
+            return jnp.load(filepath, allow_pickle=False)
+        else:
+            with open(filepath, 'rb') as f:
+                return pickle.load(f)
 
 
 cache = cachetools.LRUCache(maxsize=32)
@@ -97,6 +100,7 @@ class CacheFunc:
 
     def __init__(
             self,
+            persister: Persister,
             func: Callable[[], Iterable],
             item_type: type,
             recalculate: bool,
@@ -108,6 +112,7 @@ class CacheFunc:
     ):
         assert not (recalculate and read_only), 'Cannot use recalculate and read_only together'
         assert not batch or item_type is not None, 'Item type must be provided in batch mode'
+        self._persister = persister
         self._func = func
         self._item_type = item_type or func.__annotations__['return']
         self._recalculate = recalculate
@@ -134,7 +139,7 @@ class CacheFunc:
                 for j, item in enumerate(batch):
                     entry_name = self._filename_gen(self._func.__name__, j)
                     logger.debug(f'Persisting calculation result: {entry_name}')
-                    save_obj(entry_name, item)
+                    self._persister.save_obj(entry_name, item)
             return batch[i]
         else:
             entry_name = self._filename_gen(self._func.__name__, *args)
@@ -145,20 +150,23 @@ class CacheFunc:
             logger.info('Calculation time for %s: %f s', entry_name, end_time - start_time)
             if persist:
                 logger.debug(f'Persisting calculation result: {entry_name}')
-                save_obj(entry_name, res)
+                self._persister.save_obj(entry_name, res)
             return res
 
-    @cachetools.cached(cache=cache)
-    def __call__(self, *args):
+    def get_or_recalculate(self, *args):
         entry_name = self._filename_gen(self._func.__name__, *args)
-        filepath = get_path(entry_name, self._item_type)
+        filepath = self._persister.get_path(entry_name, self._item_type)
         if self._read_only or (filepath.exists() and not self._recalculate):
             logger.debug('Reading from disk cache: %s', entry_name)
-            res = read_obj(entry_name, self._item_type)
+            res = self._persister.read_obj(entry_name, self._item_type)
         else:
             res = self.recalculate(*args, persist=self._persist)
 
         return res
+
+    @cachetools.cached(cache=cache)
+    def __call__(self, *args):
+        return self.get_or_recalculate(*args)
 
     def __getitem__(self, i: int):
         return self.__call__(i)
@@ -180,57 +188,63 @@ class CacheFunc:
 ItemType = Any
 
 
-def cached(
-        *,
-        item_type: Optional[type] = None,
-        recalculate: bool = False,
-        persist: bool = True,
-        read_only: bool = False,
-        filename_gen: Optional[Callable[[str, int], str]] = None,
-        batch: bool = False,
-        batch_size: Optional[int] = None,
-) -> Callable[[Callable[[], Iterable[ItemType]]], Callable[[int], ItemType]]:
-    """Decorator adding caching on disk to functions that batch calculation for multiple items
+def make_cached(cache_dir):
+    persister = Persister(cache_dir)
 
-    Parameters
-    ----------
-    item_type: type
-        type of items in the batch
-    recalculate: bool
-        if True, perform the calculation from scratch ignoring any cached results. Default: False
-    persist: bool
-        if True, persist recalculated result on disk (only has effect if `recalculate` is `True`). Default: True
-    read_only: bool
-        if True, read the cached batch from disk and never attempt to recalculate. Default: False
-    filename_gen: Optional[Callable[[str, int], str]]
-        function returning file name to use when persisting results on disk
-    batch: bool
-        if True, the underlying calculation returns a sequence of items as opposed to invidivual items. Default: False
-    batch_size: Optional[int]
-        size of the batch to use in range checks (only has effect if `batch` is `True`)
+    def cached(
+            *,
+            item_type: Optional[type] = None,
+            recalculate: bool = False,
+            persist: bool = True,
+            read_only: bool = False,
+            filename_gen: Optional[Callable[[str, int], str]] = None,
+            batch: bool = False,
+            batch_size: Optional[int] = None,
+    ) -> Callable[[Callable[[], Iterable[ItemType]]], Callable[[int], ItemType]]:
+        """Decorator adding caching on disk to functions that batch calculation for multiple items
 
-    Returns
-    -------
-    Callable[[Callable[[], Iterable[ItemType]]], Callable[[int], ItemType]]
-        decorator function
-    """
-    if filename_gen is None:
-        def filename_gen(func_name, *args, **kwargs):
-            assert len(kwargs) == 0, 'kwargs not supported'
-            if len(args) > 0:
-                return func_name + '_' + '_'.join([str(arg) for arg in args])
-            else:
-                return func_name
-    def decorator(func):
-        cache_func = CacheFunc(
-            func=func,
-            item_type=item_type,
-            recalculate=recalculate,
-            persist=persist,
-            read_only=read_only,
-            batch=batch,
-            batch_size=batch_size,
-            filename_gen=filename_gen,
-        )
-        return wraps(func)(cache_func)
-    return decorator
+        Parameters
+        ----------
+        item_type: type
+            type of items in the batch
+        recalculate: bool
+            if True, perform the calculation from scratch ignoring any cached results. Default: False
+        persist: bool
+            if True, persist recalculated result on disk (only has effect if `recalculate` is `True`). Default: True
+        read_only: bool
+            if True, read the cached batch from disk and never attempt to recalculate. Default: False
+        filename_gen: Optional[Callable[[str, int], str]]
+            function returning file name to use when persisting results on disk
+        batch: bool
+            if True, the underlying calculation returns a sequence of items as opposed to invidivual items. Default: False
+        batch_size: Optional[int]
+            size of the batch to use in range checks (only has effect if `batch` is `True`)
+
+        Returns
+        -------
+        Callable[[Callable[[], Iterable[ItemType]]], Callable[[int], ItemType]]
+            decorator function
+        """
+        if filename_gen is None:
+            def filename_gen(func_name, *args, **kwargs):
+                assert len(kwargs) == 0, 'kwargs not supported'
+                if len(args) > 0:
+                    return func_name + '_' + '_'.join([str(arg) for arg in args])
+                else:
+                    return func_name
+        def decorator(func):
+            cache_func = CacheFunc(
+                func=func,
+                persister=persister,
+                item_type=item_type,
+                recalculate=recalculate,
+                persist=persist,
+                read_only=read_only,
+                batch=batch,
+                batch_size=batch_size,
+                filename_gen=filename_gen,
+            )
+            return wraps(func)(cache_func)
+        return decorator
+
+    return cached

@@ -1,5 +1,7 @@
 from typing import Any, Callable, Iterable, Protocol, Sequence, Tuple, TypeVar
 
+from joblib import Parallel, delayed
+
 import numpy as np
 
 
@@ -41,6 +43,13 @@ def get_map_parallel(client):
     def map_parallel_client(func, iterable):
         return map_parallel(func, iterable, client)
     return map_parallel_client
+
+
+def get_map_parallel_joblib(n_jobs):
+    parallel = Parallel(n_jobs=n_jobs)
+    def map_parallel(func, it):
+        return parallel(delayed(func)(i) for i in it)
+    return map_parallel
 
 
 def apply_along_axis_parallel(

@@ -52,3 +52,5 @@ theta_inits = [
     np.array([0.55, 3., 3., 0.8]),
     np.array([0.55, 1., 1.5, 1.5]),
 ]
+
+n_chains = len(theta_inits)
