@@ -3,10 +3,15 @@
 \usepackage{mathtools}
 \usepackage[ruled]{algorithm2e}
 \usepackage[authoryear,round]{natbib}
+\usepackage{xcolor}
+\usepackage{graphicx,epsfig}
+
 
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
+
+\graphicspath{ {../report/figures/} }
 
 \usetheme{Madrid}
 
@@ -119,7 +124,6 @@ We need a measure of proximity of the selected subsample to the target distribut
 An integral probability metric between two distributions $P$ and $P'$ is defined as
 \begin{equation*}
 \mathcal{D}_{\mathcal{F}}(P, P') \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff P' \right|,
-\label{eq:ipm}
 \end{equation*}
 where $\mathcal{X}$ is a measurable space on which both $P$ and $P'$ are defined and $\mathcal{F}$ is a set of test functions.
 \end{block}
@@ -152,7 +156,6 @@ However, it is \alert{difficult to compute} in practice:
 An integral probability metric between two distributions $P$ and $P'$ is defined as
 \begin{equation*}
 \mathcal{D}_{\mathcal{F}}(P, P') \coloneq \sup_{f \in \mathcal{F}}\left|\int_\mathcal{X} f \diff P - \int_\mathcal{X} f \diff P' \right|,
-\label{eq:ipm}
 \end{equation*}
 where $\mathcal{X}$ is a measurable space on which both $P$ and $P'$ are defined and $\mathcal{F}$ is a set of test functions.
 \end{block}
@@ -262,7 +265,6 @@ k_P(x, y) \coloneq
 &(\nabla_x\cdot\nabla_y) k(x,y) \\
 &+ \langle \nabla_x k(x, y), \nabla_y \log p(y) \rangle + \langle \nabla_y k(x, y), \nabla_x \log p(x) \rangle \\
 &+ k(x, y) \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle.
-\label{eq:deriv:stein-kernel}
 \end{aligned}
 \end{equation*}
 
@@ -278,10 +280,23 @@ k_P(x, y) \coloneq
 
 \end{block}
 
-If $P'$ is the discrete distribution, the evaluation of KSD is a straightforward average of elements in the Gram matrix of the kernel $k_P$:
+If $P'$ is the discrete distribution, this becomes
 \begin{equation*}
 \mathcal{D}_{P}^2\left(\frac{1}{n} \sum_{i=1}^n \delta(x_i)\right) = \frac{1}{n^2} \sum_{i,j=1}^n k_P(x_i, x_j),
 \label{eq:ksd:discrete}
+\end{equation*}
+where
+\begin{equation*}
+\begin{aligned}
+k_P(x, y) \coloneq 
+&(\nabla_x\cdot\nabla_y) k(x,y) \\
+&+ \langle \nabla_x k(x, y), \nabla_y \log p(y) \rangle + \langle \nabla_y k(x, y), \nabla_x \log p(x) \rangle \\
+&+ k(x, y) \langle \nabla_x \log p(x), \nabla_y \log p(y) \rangle.
+\end{aligned}
+\end{equation*}
+The typical choice for $k(x, y)$ is the inverse multiquadric kernel:
+\begin{equation*}
+k(x, y) = \left(c^2 + \|\Gamma^{-1/2}(x-y)\|\right)^\beta.
 \end{equation*}
 
 \end{frame}
@@ -323,11 +338,55 @@ $$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k
 
 \subsection{Gradient-free kernel Stein discrepancy}
 
+\begin{frame}
+\frametitle{Stein thinning (continued)}
+
+The complication in using Stein thinning comes from the need to calculate gradients of the log-posterior to evaluate the kernel:
+
+\begin{equation*}
+\begin{aligned}
+k_P(x, y) \coloneq 
+&(\nabla_x\cdot\nabla_y) k(x,y) \\
+&+ \langle \nabla_x k(x, y), \textcolor{red}{\nabla_y \log p(y)} \rangle + \langle \nabla_y k(x, y), \textcolor{red}{\nabla_x \log p(x)} \rangle \\
+&+ k(x, y) \langle \textcolor{red}{\nabla_x \log p(x)}, \textcolor{red}{\nabla_y \log p(y)} \rangle.
+\end{aligned}
+\end{equation*}
+
+This might be expensive, although it can be easily parallelised.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Gradient-free kernel Stein discrepancy}
+
+\cite{fisherGradientFreeKernelStein2024} introduce a gradient-free version of KSD.
+
+An auxiliary distribution $Q$ need to be chosen by the user, then the gradient-free KSD is given by
+\begin{equation*}
+k_{P,Q}(x, y) = \frac{q(x)}{p(x)} \frac{q(y)}{p(y)} k_Q(x, y),
+\end{equation*}
+where
+\begin{equation*}
+\begin{aligned}
+k_Q(x, y) \coloneq 
+&(\nabla_x\cdot\nabla_y) k(x,y) \\
+&+ \langle \nabla_x k(x, y), \textcolor{blue}{\nabla_y \log q(y)} \rangle + \langle \nabla_y k(x, y), \textcolor{blue}{\nabla_x \log q(x)} \rangle \\
+&+ k(x, y) \langle \textcolor{blue}{\nabla_x \log q(x)}, \textcolor{blue}{\nabla_y \log q(y)} \rangle.
+\end{aligned}
+\end{equation*}
+
+When $k(x,y)$ is the inverse multiquadric kernel, the gradient-free KSD offers convergence control (Theorem 2 in \cite{fisherGradientFreeKernelStein2024}).
+
+\end{frame}
+
 \section{Methodology}
 
 \subsection{Proposed algorithm}
 
 \begin{frame}
+\frametitle{Gradient-free Stein thinning}
+
+We modify the algorithm of \cite{riabizOptimalThinningMCMC2022} to minimise the gradient-free KSD of \cite{fisherGradientFreeKernelStein2024}:
 
 \begin{algorithm}[H]
 \caption{Gradient-free Stein thinning.}\label{alg:gf}
@@ -343,7 +402,11 @@ $$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_P(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k
 \KwResult{Indices $\pi$ of a sequence $(x_{\pi(j)})_{j=1}^m$ where $\pi(j) \in \{1, \dots, n\}$.}
 
 \For{$j = 1, \dots, m$}{
-$$\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_{P,Q}(x_{\pi(j')}, x_i)$$
+\vspace{-5pt}
+\begin{equation*}
+\pi(j) \in \argmin_{i=1,\dots,n} \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j'=1}^{j-1} k_{P,Q}(x_{\pi(j')}, x_i)
+\end{equation*}
+\vspace{-15pt}
 }
 \end{algorithm}
 
@@ -376,11 +439,123 @@ Set $\pi(j) = \argmin_i A[i]$ \;
 
 \end{frame}
 
-\subsection{Energy distance}
+\subsection{Evaluation}
+
+\begin{frame}
+\frametitle{Evaluation protocol}
+
+The following protocol was used in the evaluating the new method:
+\begin{enumerate}
+\item obtain a sample from the target distribution (depending on the test case, the sampling is done either i.i.d.\ or via MCMC),
+\item apply na\"ive thinning, Stein thinning and the proposed algorithm to get a thinned sample of a given cardinality,
+\item evaluate the result of thinning using an impartial metric.
+\end{enumerate}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Energy distance}
+
+In order to assess how well the selected sample approximates the target distribution, we use the energy distance.
+
+\begin{block}{Energy distance (\cite{rizzoEnergyDistance2016})}
+The squared energy distance is defined for two distributions $P$ and $Q$ as
+\begin{equation*}
+D^2_e(P, Q) \coloneq 2 \mathbb{E} \|X - Y\| - \mathbb{E}\|X - X'\| - \mathbb{E} \|Y - Y'\|,
+\end{equation*}
+where $X, X' \sim P$ and $Y, Y' \sim Q$.
+\end{block}
+
+For samples $x_1, \dots, x_n$ and $y_1, \dots, y_m$ from $X$ and $Y$, respectively, the corresponding statistic is given by
+\begin{equation*}
+\mathcal{E}_{n,m}(P, Q) \coloneq \frac{2}{nm}\sum_{i=1}^n \sum_{j=1}^m \|x_i - y_j\| - \frac{1}{n^2} \sum_{i=1}^n\sum_{j=1}^n \|x_i - x_j\| - \frac{1}{m^2} \sum_{i=1}^m \sum_{j=1}^m \|y_i - y_j\|.
+\end{equation*}
+
+
+\end{frame}
 
 \section{Results}
 
 \subsection{Bivariate Gaussian mixture}
+
+\begin{frame}
+\frametitle{Bivariate Gaussian mixture}
+
+We use the bivariate Gaussian mixture with means 
+$$
+\mu_1 = \begin{pmatrix} -1 \\ -1 \end{pmatrix}, \qquad
+\mu_2 = \begin{pmatrix} 1 \\ 1 \end{pmatrix},
+$$
+covariance matrices
+$$
+\Sigma_1 = \begin{pmatrix}
+0.5 & 0.25\\
+0.25 & 1
+\end{pmatrix}, \qquad
+\Sigma_2 = \begin{pmatrix}
+2 & -0.8 \sqrt{3}\\
+-0.8 \sqrt{3} & 1.5
+\end{pmatrix}
+$$
+and weights
+$$w = \begin{pmatrix} 0.3 \\ 0.7 \end{pmatrix}.$$
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Bivariate Gaussian mixture: sample}
+
+We obtain 1000 points by directly drawing from the target distribution:
+
+\begin{figure}[H]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-sample.pdf}
+}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Bivariate Gaussian mixture: thinning approaches}
+
+We evaluate the following approaches:
+\begin{itemize}
+\item na\"ive thinning,
+\item standard Stein thinning,
+\item gradient-free Stein thinning with different choices of $Q$:
+	\begin{itemize}
+	\item multivariate Gaussian using the sample mean and covariance,
+	\item Laplace approximation,
+	\item KDE approximation.
+	\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Bivariate Gaussian mixture: thinning results}
+
+\begin{figure}[H]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-thinned-20.pdf}
+}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Bivariate Gaussian mixture: comparison of approaches}
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-comparison.eps}
+}
+\end{figure}
+
+\end{frame}
 
 \subsection{Lotka-Volterra inverse problem}
 
