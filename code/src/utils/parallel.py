@@ -57,7 +57,7 @@ def apply_along_axis_parallel(
         axis: int,
         arr: np.ndarray,
         chunk_size: int,
-        client: Client,
+        map_parallel: Callable[[Callable[[Any], Any], Iterable[Any]], Iterable[Any]],
         args: Tuple[Any] = tuple(),
 ) -> np.ndarray:
     """Apply function along the given axis and parallelise in chunks
@@ -75,8 +75,8 @@ def apply_along_axis_parallel(
         input array
     chunk_size: int
         size of the chunk to submit for parallel processing
-    client: Client
-        a client object that supports submitting tasks for execution and gathering results
+    map_parallel: Callable[[Callable[Any], Iterable[Any]], Iterable[Any]]
+        function to perform mapping in parallel
     args: Tuple[Any]
         additional arguments to ``func1d``
 
@@ -103,7 +103,7 @@ def apply_along_axis_parallel(
         return np.apply_along_axis(func1d, axis, chunk, *args)
 
     # apply function to chunks in parallel
-    results = map_parallel(func, chunker(), client)
+    results = map_parallel(func, chunker())
 
     # concatenate the results
     max_ndim = max((result.ndim for result in results))
@@ -113,9 +113,9 @@ def apply_along_axis_parallel(
         return np.concatenate(results)
 
 
-def parallelise_for_unique(func, sample, client, row_chunk_size=200):
+def parallelise_for_unique(func, sample, map_parallel, row_chunk_size=200):
     """Calculate gradients for samples"""
     # we can save time by calculating gradients for unique samples only
     unique_samples, inverse_index = np.unique(sample, axis=0, return_inverse=True)
-    res = apply_along_axis_parallel(func, 1, unique_samples, row_chunk_size, client)
+    res = apply_along_axis_parallel(func, 1, unique_samples, row_chunk_size, map_parallel)
     return res[inverse_index]
