@@ -17,7 +17,18 @@ import jax.numpy as jnp
 logger = logging.getLogger(__name__)
 
 
-class Persister:
+class Storage:
+    def exists(self, entry_name: str, expected_type: type) -> bool:
+        ...
+
+    def save_obj(self, entry_name: str, obj: Any):
+        ...
+
+    def read_obj(self, entry_name: str, expected_type: type) -> Any:
+        ...
+
+
+class LocalStorage(Storage):
     def __init__(self, cache_dir):
         self.cache_dir = cache_dir
 
@@ -92,15 +103,18 @@ class Persister:
             with open(filepath, 'rb') as f:
                 return pickle.load(f)
 
+    def exists(self, entry_name: str, expected_type: type) -> bool:
+        return self.get_path(entry_name, expected_type).exists()
 
-cache = cachetools.LRUCache(maxsize=32)
+
+memory_cache = cachetools.LRUCache(maxsize=32)
 
 
 class CacheFunc:
 
     def __init__(
             self,
-            persister: Persister,
+            storage: Storage,
             func: Callable[[], Iterable],
             item_type: type,
             recalculate: bool,
@@ -112,7 +126,7 @@ class CacheFunc:
     ):
         assert not (recalculate and read_only), 'Cannot use recalculate and read_only together'
         assert not batch or item_type is not None, 'Item type must be provided in batch mode'
-        self._persister = persister
+        self._storage = storage
         self._func = func
         self._item_type = item_type or func.__annotations__['return']
         self._recalculate = recalculate
@@ -139,7 +153,7 @@ class CacheFunc:
                 for j, item in enumerate(batch):
                     entry_name = self._filename_gen(self._func.__name__, j)
                     logger.debug(f'Persisting calculation result: {entry_name}')
-                    self._persister.save_obj(entry_name, item)
+                    self._storage.save_obj(entry_name, item)
             return batch[i]
         else:
             entry_name = self._filename_gen(self._func.__name__, *args)
@@ -150,21 +164,21 @@ class CacheFunc:
             logger.info('Calculation time for %s: %f s', entry_name, end_time - start_time)
             if persist:
                 logger.debug(f'Persisting calculation result: {entry_name}')
-                self._persister.save_obj(entry_name, res)
+                self._storage.save_obj(entry_name, res)
             return res
 
     def get_or_recalculate(self, *args):
         entry_name = self._filename_gen(self._func.__name__, *args)
-        filepath = self._persister.get_path(entry_name, self._item_type)
-        if self._read_only or (filepath.exists() and not self._recalculate):
+        exists = self._storage.exists(entry_name, self._item_type)
+        if self._read_only or (exists and not self._recalculate):
             logger.debug('Reading from disk cache: %s', entry_name)
-            res = self._persister.read_obj(entry_name, self._item_type)
+            res = self._storage.read_obj(entry_name, self._item_type)
         else:
             res = self.recalculate(*args, persist=self._persist)
 
         return res
 
-    @cachetools.cached(cache=cache)
+    @cachetools.cached(cache=memory_cache)
     def __call__(self, *args):
         return self.get_or_recalculate(*args)
 
@@ -188,9 +202,7 @@ class CacheFunc:
 ItemType = Any
 
 
-def make_cached(cache_dir):
-    persister = Persister(cache_dir)
-
+def _make_cached(storage):
     def cached(
             *,
             item_type: Optional[type] = None,
@@ -235,7 +247,7 @@ def make_cached(cache_dir):
         def decorator(func):
             cache_func = CacheFunc(
                 func=func,
-                persister=persister,
+                storage=storage,
                 item_type=item_type,
                 recalculate=recalculate,
                 persist=persist,
@@ -248,3 +260,7 @@ def make_cached(cache_dir):
         return decorator
 
     return cached
+
+
+def make_cached(cache_dir):
+    return _make_cached(LocalStorage(cache_dir=cache_dir))
