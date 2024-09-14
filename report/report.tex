@@ -14,6 +14,7 @@
 \usepackage{tabularx}
 \usepackage{pdfpages}
 \usepackage[nameinlink]{cleveref}
+\usepackage{nicefrac,xfrac}
 
 \usepackage{geometry}
 \geometry{margin=2cm}
@@ -488,7 +489,7 @@ and weights
 $$w = \begin{pmatrix} 0.3 \\ 0.7 \end{pmatrix},$$
 and obtain 1000 samples by directly drawing from the target. A scatter plot of the sample as well as the contour plot of the probability density are shown in \Cref{fig:gmm:sample}.
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{gaussian-mixture-sample.pdf}
@@ -513,7 +514,7 @@ For the KDE estimator, we use the Gaussian kernel, as implemented in the \texttt
 
 We evaluate the log-density of the chosen auxiliary distribution and the gradient for all sample points and use \Cref{alg:gf} to obtain a thinned sample. The results are shown in \Cref{fig:gmm:thinned}. The failure of the Laplace approximation is striking, so we investigate it further. The other methods produce visually sensible results.
 
-\begin{figure}[h!]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{gaussian-mixture-thinned-20.pdf}
@@ -522,33 +523,72 @@ We evaluate the log-density of the chosen auxiliary distribution and the gradien
 \label{fig:gmm:thinned}}
 \end{figure}
 
-To see why the Laplace approximation fails in this case, recall that~(\ref{eq:k_P_Q:expanded}) can be written in the form~(\ref{eq:k_P_Q}) and note the multiplier $q(x) / p(x)$. In \Cref{fig:gmm:laplace-failure}, we plot the values $\log_{10} q(x) - \log_{10} p(x) = \log_{10} (q(x) / p(x))$ for points in the sample, and \Cref{fig:gmm:kQ:hist} shows the histogram of $|k_Q(x_i, x_j)|$. We can see that $q(x) / p(x)$ varies by about 15 orders of magnitude, while $|k_Q(x_i, x_j)|$ varies only by about 8 orders of magnitude, therefore the scale of $q(x) / p(x)$ will tend to dominate the product
+To see why the Laplace approximation fails in this case, recall that~(\ref{eq:k_P_Q:expanded}) can be written in the form~(\ref{eq:k_P_Q}) and consider the optimisation performed by \Cref{alg:gf}. The first iteration seeks to find
 \begin{equation*}
-\frac{q(x_i)}{p(x_i)} \frac{q(x_j)}{p(x_j)} k_Q(x_i, x_j),
+\argmin_i \frac{k_{P,Q}(x_i, x_i)}{2} = \argmin_i \left(\frac{q(x_i)}{p(x_i)}\right)^2 k_Q(x_i, x_i).
 \end{equation*}
-especially for the diagonal elements
-\begin{equation*}
-\frac{q(x_i)}{p(x_i)} \frac{q(x_i)}{p(x_i)} k_Q(x_i, x_i).
-\end{equation*}
-\Cref{fig:gmm:laplace:first-iterations} in the Appendix confirms that the algorithm is compelled to select the same point as a result. By contrast, using the Gaussian distribution with the sample mean and covariance results in a considerably narrower range of $q(x) / p(x)$, as can be seen in \Cref{fig:gmm:laplace-failure}(b), allowing the algorithm to produce a thinned sample.
+In \Cref{fig:gmm:laplace-terms}(a) and (b), we show the scale of the two terms on the right-hand side of the minimised expression. The term $(q(x_i) / p(x_i))^2$ varies by about 30 orders of magnitude, whereas the term $k_Q(x_i, x_i)$ varies by only about 2 orders of magnitude, so the magnitude of $(q(x_i) / p(x_i))^2$ dominates the product of the two terms, and the index $\pi(1)$ is decided primarily based on the ratio $q(x_i) / p(x_i)$. In our experiment, $\pi(1)$ is in fact the element attaining the minimum value of $q(x_i) / p(x_i)$.
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=1.0\textwidth]{gaussian-mixture-laplace-proxy.eps}
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-laplace-terms.eps}
 }
-\caption{The values of $\log_{10} q(x) - \log_{10} p(x)$ for the points in the Gaussian mixture sample under (a)~the Laplace approximation and (b)~the simple Gaussian using the sample mean and covariance.
-\label{fig:gmm:laplace-failure}}
+\caption{Scale of the terms involved in the first two iterations of \Cref{alg:gf} for the bivariate Gaussian mixture with an auxiliary distribution based on the Laplace approximation.
+\label{fig:gmm:laplace-terms}}
 \end{figure}
 
-\begin{figure}[h]
-\centering
-\makebox[\textwidth][c]{
-	\includegraphics[width=0.5\textwidth]{gaussian-mixture-kQ-hist.eps}
-}
-\caption{Histogram of values $|k_Q(x_i, x_j)|$ for the bivariate Gaussian mixture using the Laplace approximation.
-\label{fig:gmm:kQ:hist}}
-\end{figure}
+
+The second iteration of the algorithm then seeks to find
+\begin{equation*}
+\begin{aligned}
+&\argmin_i \frac{k_{P,Q}(x_i, x_i)}{2} + k_{P,Q}(x_i, x_{\pi(1)}) \\
+&\qquad = \argmin_i \left(\frac{q(x_i)}{p(x_i)}\right)^2 k_Q(x_i, x_i) + 2 \frac{q(x_i)}{p(x_i)} \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})} k_Q(x_i, x_{\pi(1)}) \\
+&\qquad = \argmin_i \left(\frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2 \left( \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2 k_Q(x_i, x_i) + 2 \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right) k_Q(x_i, x_{\pi(1)}) \right) \\
+&\qquad = \argmin_i \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2 k_Q(x_i, x_i) \left( 1 + 2 \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)} \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^{-1} \right).
+\end{aligned}
+\end{equation*}
+\Cref{fig:gmm:laplace-terms}(d) shows that
+\begin{equation*}
+\frac{|k_Q(x_i, x_{\pi(1)})|}{k_Q(x_i, x_i)} \leq 2,
+\end{equation*}
+while \Cref{fig:gmm:laplace-terms}(c) confirms that for most points
+\begin{equation*}
+\left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right) \gg 2,
+\end{equation*}
+so the term
+\begin{equation*}
+1 + 2 \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)} \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^{-1}
+\end{equation*}
+has negligible impact on the choice made by the algorithm, and $\pi(2)$ is predominantly determined by the magnitude of
+\begin{equation*}
+\left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2.
+\end{equation*}
+
+If $\pi(2) = \pi(1)$, as observed in our experiment, then the third iteration of the algorithm faces the same predicament:
+\begin{equation*}
+\begin{aligned}
+&\argmin_i \frac{k_{P,Q}(x_i, x_i)}{2} + k_{P,Q}(x_i, x_{\pi(1)}) + k_{P,Q}(x_i, x_{\pi(2)})\\
+&\qquad = \argmin_i \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2 k_Q(x_i, x_i) \left( 1 + 4 \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)} \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^{-1} \right).
+\end{aligned}
+\end{equation*}
+and the situation repeats. 
+%On iteration $m$, we have
+%\begin{equation*}
+%\begin{aligned}
+%&\argmin_i \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j=2}^m k_{P,Q}(x_i, x_{\pi(j-1)})\\
+%&\qquad = \argmin_i \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2 k_Q(x_i, x_i) \left( 1 + 2 (m - 1) \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)} \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^{-1} \right).
+%\end{aligned}
+%\end{equation*}
+%Eventually as $m$ grows, the term
+%\begin{equation*}
+%2 (m - 1) \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)}
+%\end{equation*}
+%will become commensurate with
+%\begin{equation*}
+%\left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)
+%\end{equation*}
+%for more points $x_i$ and the algorithm will gradually start selecting other points.
 
 Finally, \Cref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. The validation sample used in evaluating the energy distance is a separate i.i.d.\ sample of size 1000 from the same Gaussian mixture. We see that the gradient-free approach using the KDE is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. Unsurprisingly, using the simple Gaussian approximation proves inferior to KDE.
 
@@ -867,29 +907,10 @@ For the Lotka-Volterra model~(\ref{eq:lotka-volterra}), this yields eight additi
 \chapter{Additional figures}
 \label{appendix:figures}
 
-\Cref{fig:gmm:laplace:first-iterations} shows the values used in the first two optimisation steps of \Cref{alg:gf} for the bivariate Gaussian mixture of \Cref{sec:gaussian-mixture} with the auxiliary distribution based on the Laplace approximation. Specifically, the first iteration selects $i$ that minimises
-\begin{equation*}
-\frac{k_Q(x_i, x_i)}{2},
-\end{equation*}
-whereas the second iteration minimises
-\begin{equation*}
-\frac{k_{P,Q}(x_i, x_i)}{2} + k_{P,Q}(x_{\pi(1)}, x_i),
-\end{equation*}
-where $\pi(1)$ is the index of the element selected on the first iteration. The same element ends up selected on both iterations.
-
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=1.0\textwidth]{gaussian-mixture-laplace-first-iterations.eps}
-}
-\caption{Values used in the first two optimisation steps of the Stein thinning algorithm for the bivariate Gaussian mixture with the auxiliary distribution based on the Laplace approximation. The values are shown in the $\log_{10}$ scale. The element selected by the optimisation in both cases is circled.
-\label{fig:gmm:laplace:first-iterations}}
-\end{figure}
-
-\begin{figure}[h]
-\centering
-\makebox[\textwidth][c]{
-	\includegraphics[width=1.0\textwidth]{lotka-volterra-trace-plots.eps}
+	\includegraphics[width=0.8\textwidth]{lotka-volterra-trace-plots.eps}
 }
 \caption{Trace plots from the random-walk Metropolis-Hastings algorithm for the Lotka-Volterra inverse problem.
 \label{fig:lotka-volterra:trace-plots}}
