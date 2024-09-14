@@ -149,7 +149,7 @@ class S3Storage(Storage):
             entry object to persist
         """
         filepath = self.get_path(entry_name, type(obj))
-        logger.debug('Writing %s', filepath)
+        logger.debug('Writing to S3 %s', filepath)
         if isinstance(obj, np.ndarray):
             with self.s3.open(filepath, 'wb') as f:
                 np.save(f, obj, allow_pickle=False)
@@ -180,7 +180,7 @@ class S3Storage(Storage):
             entry object read from disk
         """
         filepath = self.get_path(entry_name, expected_type)
-        logger.debug('Reading %s', filepath)
+        logger.debug('Reading from S3 %s', filepath)
         if expected_type is np.ndarray:
             with self.s3.open(filepath, 'rb') as f:
                 return np.load(f, allow_pickle=False)
