@@ -13,11 +13,14 @@ import cachetools
 import jax
 import jax.numpy as jnp
 
+from s3fs.core import S3FileSystem
+
 
 logger = logging.getLogger(__name__)
 
 
 class Storage:
+
     def exists(self, entry_name: str, expected_type: type) -> bool:
         ...
 
@@ -29,6 +32,7 @@ class Storage:
 
 
 class LocalStorage(Storage):
+
     def __init__(self, cache_dir):
         self.cache_dir = cache_dir
 
@@ -105,6 +109,93 @@ class LocalStorage(Storage):
 
     def exists(self, entry_name: str, expected_type: type) -> bool:
         return self.get_path(entry_name, expected_type).exists()
+
+
+class S3Storage(Storage):
+
+    def __init__(self, bucket_name):
+        self.bucket_name = bucket_name
+        self.s3 = S3FileSystem()
+
+    def get_path(self, entry_name: str, expected_type: type) -> Path:
+        """Construct path for persisting an entry of a given type
+
+        Parameters
+        ----------
+        entry_name: str
+            name of the entry
+        expected_type: type
+            type of the entry
+
+        Returns
+        -------
+        Path
+            path to the file on disk
+        """
+        if expected_type is np.ndarray:
+            return f'{self.bucket_name}/{entry_name}.npy'
+        else:
+            return f'{self.bucket_name}/{entry_name}'
+
+
+    def save_obj(self, entry_name: str, obj: Any):
+        """Persist entry on disk
+
+        Parameters
+        ----------
+        entry_name: str
+            name of the entry
+        obj: Any
+            entry object to persist
+        """
+        filepath = self.get_path(entry_name, type(obj))
+        logger.debug('Writing %s', filepath)
+        if isinstance(obj, np.ndarray):
+            with self.s3.open(filepath, 'wb') as f:
+                np.save(f, obj, allow_pickle=False)
+        elif isinstance(obj, pd.DataFrame):
+            with self.s3.open(filepath, 'w') as f:
+                obj.to_csv(f)
+        elif isinstance(obj, jax.Array):
+            with self.s3.open(filepath, 'wb') as f:
+                jnp.save(f, obj, allow_pickle=False)
+        else:
+            with self.s3.open(filepath, 'wb') as f:
+                pickle.dump(obj, f)
+
+
+    def read_obj(self, entry_name: str, expected_type: type) -> Any:
+        """Read persisted entry from disk
+
+        Parameters
+        ----------
+        entry_name: str
+            name of the entry
+        expected_type: type
+            type of the entry
+
+        Returns
+        -------
+        Any
+            entry object read from disk
+        """
+        filepath = self.get_path(entry_name, expected_type)
+        logger.debug('Reading %s', filepath)
+        if expected_type is np.ndarray:
+            with self.s3.open(filepath, 'rb') as f:
+                return np.load(f, allow_pickle=False)
+        elif expected_type is pd.DataFrame:
+            with self.s3.open(filepath, 'r') as f:
+                return pd.read_csv(f, index_col=0)
+        elif expected_type is jax.Array:
+            with self.s3.open(filepath, 'rb') as f:
+                return jnp.load(filepath, allow_pickle=False)
+        else:
+            with self.s3.open(filepath, 'rb') as f:
+                return pickle.load(f)
+
+    def exists(self, entry_name: str, expected_type: type) -> bool:
+        return self.s3.exists(self.get_path(entry_name, expected_type))
 
 
 memory_cache = cachetools.LRUCache(maxsize=32)
@@ -264,3 +355,7 @@ def _make_cached(storage):
 
 def make_cached(cache_dir):
     return _make_cached(LocalStorage(cache_dir=cache_dir))
+
+
+def make_cached_s3(bucket_name):
+    return _make_cached(S3Storage(bucket_name=bucket_name))
