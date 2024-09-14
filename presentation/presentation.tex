@@ -5,11 +5,15 @@
 \usepackage[authoryear,round]{natbib}
 \usepackage{xcolor}
 \usepackage{graphicx,epsfig}
-
+\usepackage{tabularx}
 
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\trace}{trace}
+\DeclareMathOperator{\diag}{diag}
+
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
 
 \graphicspath{ {../report/figures/} }
 
@@ -558,6 +562,139 @@ We evaluate the following approaches:
 \end{frame}
 
 \subsection{Lotka-Volterra inverse problem}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem}
+
+The Lotka-Volterra model describes the evolution of an idealised ecosystem with two species: predator and prey.
+
+Let $u_1$ be the size of the prey population and $u_2$ the size of the predator population. The model then postulates the following dynamic:
+\begin{equation*}
+\begin{aligned}
+\frac{\diff u_1}{\diff t} & = \theta_1 u_1 - \theta_2 u_1 u_2, \\
+\frac{\diff u_2}{\diff t} & = -\theta_3 u_2 + \theta_4 u_1 u_2, \\
+\end{aligned}
+\end{equation*}
+with $\theta_1, \dots, \theta_4 > 0$.
+
+The inverse problem: given a noisy realisation
+\begin{equation*}
+y(t) = \begin{pmatrix}
+u_1(t) \\ u_2(t)
+\end{pmatrix}
++ \varepsilon(t),
+\end{equation*}
+infer $\theta = (\theta_1, \dots, \theta_4)^T$ that best describes the observed behaviour.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: synthetic data}
+
+\begin{block}{Lotka-Volterra model}
+\begin{equation*}
+\begin{aligned}
+\frac{\diff u_1}{\diff t} & = \theta_1 u_1 - \theta_2 u_1 u_2, \\
+\frac{\diff u_2}{\diff t} & = -\theta_3 u_2 + \theta_4 u_1 u_2, \\
+\end{aligned}
+\end{equation*}
+\end{block}
+
+We solve the model with parameters
+\begin{equation*}
+\theta^* = (0.67, 1.33, 1, 1)^T
+\end{equation*}
+and initial values
+\begin{equation*}
+u(0) = (1, 1)^T
+\end{equation*}
+for $t \in [0, 25]$ discretised into $N = 2400$ points.
+
+We then add bivariate i.i.d.\ Gaussian noise:
+\begin{equation*}
+\varepsilon(t) \sim \mathcal{N}(0, \diag(0.2^2, 0.2^2)).
+\end{equation*}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: synthetic data}
+
+The resulting noisy data is used as the input for the inverse problem:
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{lotka-volterra.eps}
+}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: Bayesian inference}
+
+Assuming independent observations, we take the likelihood to be
+\begin{equation*}
+\mathcal{L}(\theta) = \prod_{i=1}^N \phi_i(u(t_i; \theta)),
+\end{equation*}
+where 
+\begin{equation*}
+\phi_i(u(t_i;\theta)) \propto \exp\left( -\frac{1}{2} (y(t_i) - u(t_i; \theta))^T C^{-1} (y(t_i) - u(t_i; \theta)) \right)
+\end{equation*}
+with $C = \diag(0.2^2, 0.2^2)$.
+
+Since $\theta_k > 0$, we put independent log-normal priors on each $\theta_k$:
+\begin{equation*}
+\pi(\theta) \propto \exp \left(-\frac{1}{2} (\log \theta)^T (\log \theta) \right).
+\end{equation*}
+
+By the Bayes theorem, the posterior is then
+\begin{equation*}
+p(\theta) \propto \mathcal{L}(\theta) \pi(\theta).
+\end{equation*}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: MCMC}
+
+The inference is performed using the Metropolis-Hastings algorithm with the starting points taken from \cite{riabizOptimalThinningMCMC2022}:
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{0.5\textwidth}{c Y Y Y Y} 
+ \hline
+ Chain & $\theta_1$ & $\theta_2$ & $\theta_3$ & $\theta_4$ \\
+ \hline
+ 1 & 0.55 & 1    & 0.8 & 0.8 \\ 
+ 2 & 1.5  & 1    & 0.8 & 0.8 \\
+ 3 & 1.3  & 1.33 & 0.5 & 0.8 \\
+ 4 & 0.55 & 3    & 3.  & 0.8 \\
+ 5 & 0.55 & 1    & 1.5 & 1.5 \\
+ \hline
+\end{tabularx}
+\end{table}
+
+Since the parameters $\theta_k$ of the Lotka-Volterra model are positive, we run MCMC in the log-space by applying the reparameterisation $\zeta_k = \log \theta_k$. 
+
+We run 500,000 iterations of the algorithm for each chain.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: MCMC sample}
+
+The sample from the first chain is shown here for illustration:
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=1.0\textwidth]{lotka-volterra-chain1-sample.png}
+}
+\end{figure}
+
+\end{frame}
 
 \section{Conclusions}
 

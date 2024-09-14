@@ -569,12 +569,6 @@ We conclude that even in such a favourable setup, the performance of the gradien
 A more challenging case is presented by the inverse problem of parameter inference for the Lotka-Volterra model, where the posterior cannot be sampled from directly, calling for a MCMC simulation, and thus bringing about the issue of burn-in.
 
 The Lotka-Volterra model (\cite{lotkaElementsPhysicalBiology1925,volterraVariazioniFluttuazioniNumero1926}) describes the evolution of an idealised ecosystem with two species: predator and prey. The predator population grows while prey is abundant, and the prey population shrinks when there are too many predators. Denoting the size of prey population by $u_1$, and the predator population by $u_2$, the model postulates the following dynamic:
-%\begin{equation}
-%\begin{alignat*}{4}
-%\frac{\diff u_1}{u_1} & = ( &  \theta_1 & & - \theta_2 u_2 & ) & & \diff t \\
-%\frac{\diff u_2}{u_2} & = ( & -\theta_3 & & + \theta_4 u_1 & ) & & \diff t \\
-%\end{alignat*}
-%\end{equation}
 \begin{equation}
 \begin{aligned}
 \frac{\diff u_1}{\diff t} & = \theta_1 u_1 - \theta_2 u_1 u_2, \\
@@ -607,7 +601,7 @@ where
 \phi_i(u(t_i;\theta)) \propto \exp\left( -\frac{1}{2} (y(t_i) - u(t_i; \theta))^T C^{-1} (y(t_i) - u(t_i; \theta)) \right)
 \label{eq:lotka-volterra:error-distr}
 \end{equation}
-with $C = \diag(0.2^2, 0.2^2)$. Since $\theta_i > 0$, we put independent log-normal priors on each $\theta_i$, so
+with $C = \diag(0.2^2, 0.2^2)$. Since the parameters $\theta_k > 0$, we put independent log-normal priors on each $\theta_k$, so
 \begin{equation}
 \pi(\theta) \propto \exp \left(-\frac{1}{2} (\log \theta)^T (\log \theta) \right),
 \label{eq:lotka-volterra:prior}
