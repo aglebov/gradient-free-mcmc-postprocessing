@@ -696,6 +696,65 @@ The sample from the first chain is shown here for illustration:
 
 \end{frame}
 
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: thinning approaches}
+
+We evaluate the following approaches:
+\begin{itemize}
+\item na\"ive thinning,
+\item standard Stein thinning,
+\item gradient-free Stein thinning with different choices of $Q$:
+	\begin{itemize}
+	\item multivariate Gaussian using the sample mean and covariance,
+	\item Laplace approximation - \alert{fails as in bivariate Gaussian case},
+	\item KDE approximation - \alert{computationally infeasible}.
+	\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: Stein thinning}
+
+We have a choice of applying thinning in linear or logarithmic space, however the energy distance comparison indicates no discernible difference, so we proceed to use the logarithmic space.
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=0.8\textwidth]{lotka-volterra-stein-thinning-energy-distance.eps}
+}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: comparison of approaches}
+
+Gradient-free thinning using a multivariate Gaussian with the sample mean and covariance matrix performs comparably with the gradient-based approach, notably for chain 4, when compared using the energy distance:
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=0.8\textwidth]{lotka-volterra-gf-thinning-energy-distance.eps}
+}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Lotka-Volterra inverse problem: comparison of approaches}
+
+Gradient-free thinning offers a significant improvement over na\"ive thinning in terms of KSD:
+
+\begin{figure}[h]
+\centering
+\makebox[\textwidth][c]{
+	\includegraphics[width=0.8\textwidth]{lotka-volterra-gf-thinning-ksd.eps}
+}
+\end{figure}
+
+\end{frame}
+
 \section{Conclusions}
 
 \begin{frame}
