@@ -538,7 +538,6 @@ In \Cref{fig:gmm:laplace-terms}(a) and (b), we show the scale of the two terms o
 \label{fig:gmm:laplace-terms}}
 \end{figure}
 
-
 The second iteration of the algorithm then seeks to find
 \begin{equation*}
 \begin{aligned}
@@ -573,26 +572,26 @@ If $\pi(2) = \pi(1)$, as observed in our experiment, then the third iteration of
 \end{aligned}
 \end{equation*}
 and the situation repeats. 
-%On iteration $m$, we have
-%\begin{equation*}
-%\begin{aligned}
-%&\argmin_i \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j=2}^m k_{P,Q}(x_i, x_{\pi(j-1)})\\
-%&\qquad = \argmin_i \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2 k_Q(x_i, x_i) \left( 1 + 2 (m - 1) \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)} \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^{-1} \right).
-%\end{aligned}
-%\end{equation*}
-%Eventually as $m$ grows, the term
-%\begin{equation*}
-%2 (m - 1) \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)}
-%\end{equation*}
-%will become commensurate with
-%\begin{equation*}
-%\left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)
-%\end{equation*}
-%for more points $x_i$ and the algorithm will gradually start selecting other points.
+On iteration $m$, we have
+\begin{equation*}
+\begin{aligned}
+&\argmin_i \frac{k_{P,Q}(x_i, x_i)}{2} + \sum_{j=2}^m k_{P,Q}(x_i, x_{\pi(j-1)})\\
+&\qquad = \argmin_i \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^2 k_Q(x_i, x_i) \left( 1 + 2 (m - 1) \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)} \left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)^{-1} \right).
+\end{aligned}
+\end{equation*}
+Eventually as $m$ grows, the term
+\begin{equation*}
+2 (m - 1) \frac{k_Q(x_i, x_{\pi(1)})}{k_Q(x_i, x_i)}
+\end{equation*}
+will become commensurate with
+\begin{equation*}
+\left(\frac{q(x_i)}{p(x_i)} \middle/ \frac{q(x_{\pi(1)})}{p(x_{\pi(1)})}\right)
+\end{equation*}
+for more points $x_i$ and the algorithm might get unstuck, although this can take prohibitively long: for the sample at hand, the same point is selected for at least the first 100,000,000 iterations.
 
 Finally, \Cref{fig:gmm:comparison} compares the energy distance achieved by thinned samples using the approaches above. The validation sample used in evaluating the energy distance is a separate i.i.d.\ sample of size 1000 from the same Gaussian mixture. We see that the gradient-free approach using the KDE is competitive with Stein thinning for small cardinalities, but loses out as the required sample size grows. Unsurprisingly, using the simple Gaussian approximation proves inferior to KDE.
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{gaussian-mixture-comparison.eps}
@@ -622,7 +621,7 @@ If a realisation of $u(t; \theta)$ is observed with noise for an interval $t \in
 
 We take $u(t;\theta^*)$ to be generated for $t \in [0, 25]$ by the model~(\ref{eq:lotka-volterra}) with parameters $\theta^* = (0.67, 1.33, 1, 1)^T$ and initial value $u(0; \theta^*) = (1, 1)^T$. The interval $[0, 25]$ is discretised into $N = 2400$ points, so that $t_i = 25 \cdot i / (N - 1)$ for $i \in \{0, N - 1\}$. Bivariate i.i.d.\ Gaussian noise $\varepsilon(t) \sim \mathcal{N}\left( 0, \diag(0.2^2, 0.2^2) \right)$ is then added to all data points to emulate the measurement error, and we take the resulting time series $y(t) = u(t;\theta^*) + \varepsilon(t)$ as our observed data. \Cref{fig:lotka-volterra:data} displays the values $y(t)$. For comparability of results, the parameter values above match those used by \cite{riabizOptimalThinningMCMC2022}. 
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{lotka-volterra.eps}
@@ -673,7 +672,7 @@ We follow \cite{riabizOptimalThinningMCMC2022} in selecting the starting values 
 
 Since the parameters $\theta$ of the Lotka-Volterra model are positive, we run MCMC in the log-space by applying the reparameterisation $\zeta_i = \log \theta_i$. The trace plots from 500,000 iterations of the random-walk Metropolis-Hastings algorithm for each chain are shown in \Cref{fig:lotka-volterra:trace-plots} in the Appendix. \Cref{fig:lotka-volterra:chain-paths} confirms that all chains reach the high-probability region, albeit after considerable burn-in, and \Cref{fig:lotka-volterra:chain1-sample} demonstrates the sample obtained from the first chain. Having obtained samples from the posterior distribution, we proceed to thin them.
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{lotka-volterra-chain-paths.png}
@@ -682,7 +681,7 @@ Since the parameters $\theta$ of the Lotka-Volterra model are positive, we run M
 \label{fig:lotka-volterra:chain-paths}}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{lotka-volterra-chain1-sample.png}
@@ -733,7 +732,7 @@ where the Jacobian is $J = \text{diag}(\theta_1^{-1}, \dots, \theta_d^{-1})$, so
 
 Comparing the performance of Stein thinning against na\"ive thinning (\Cref{fig:lotka-volterra:stein-thinning:energy-distance}), we observe that Stein thinning performs consistently for all chains, whereas na\"ive thinning fails for chain 4, which spent most of its time away from the high-probability region. Moreover, Stein thinning improves on na\"ive thinning for thinned sample sizes below 20 and above 2000 for all chains, and is otherwise similar.
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{lotka-volterra-stein-thinning-energy-distance.eps}
@@ -748,7 +747,7 @@ The validation sample we use for calculating the energy distance in this case wa
 
 As in the case of the Gaussian mixture, the Laplace approximation fails to produce a thinned sample here due to ratio $q(x) / p(x)$ vanishing away from the mode, so we turn to a multivariate Gaussian with the mean and covariance matching the sample mean and covariance (``simple Gaussian''). \Cref{fig:lotka-volterra:gf-thinning:energy-distance} shows that the gradient-free approach is competitive with standard Stein thinning for chains 2-5 in terms of the resulting energy distance metric, but performs worse for the first chain. Most encouragingly, the gradient-free approach handles the sample from chain 4 well.
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{lotka-volterra-gf-thinning-energy-distance.eps}
@@ -759,7 +758,7 @@ As in the case of the Gaussian mixture, the Laplace approximation fails to produ
 
 It is perhaps surprising that gradient-free thinning, being an approximation, achieves lower values of energy distance compared to the gradient-based approach. Note, however, that the energy distance is not equivalent to KSD, and the two metrics are not in general minimised by the same sample. \Cref{fig:lotka-volterra:gf-thinning:ksd} confirms that the gradient-based algorithm consistently achieves the lowest values of KSD among the approaches considered.
 
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
 \makebox[\textwidth][c]{
 	\includegraphics[width=1.0\textwidth]{lotka-volterra-gf-thinning-ksd.eps}
