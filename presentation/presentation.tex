@@ -6,6 +6,7 @@
 \usepackage{xcolor}
 \usepackage{graphicx,epsfig}
 \usepackage{tabularx}
+\usepackage{svg}
 
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
 \DeclareMathOperator*{\argmax}{arg\,max}
@@ -555,7 +556,7 @@ We evaluate the following approaches:
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=1.0\textwidth]{gaussian-mixture-comparison.eps}
+	\includegraphics[width=1.0\textwidth]{gaussian-mixture-comparison.pdf}
 }
 \end{figure}
 
@@ -625,7 +626,7 @@ The resulting noisy data is used as the input for the inverse problem:
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=0.95\textwidth]{lotka-volterra.eps}
+	\includegraphics[width=0.95\textwidth]{lotka-volterra.pdf}
 }
 \end{figure}
 
@@ -721,7 +722,7 @@ We have a choice of applying thinning in linear or logarithmic space, however th
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=0.8\textwidth]{lotka-volterra-stein-thinning-energy-distance.eps}
+	\includegraphics[width=0.8\textwidth]{lotka-volterra-stein-thinning-energy-distance.pdf}
 }
 \end{figure}
 
@@ -735,7 +736,7 @@ Gradient-free thinning using a multivariate Gaussian with the sample mean and co
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=0.8\textwidth]{lotka-volterra-gf-thinning-energy-distance.eps}
+	\includegraphics[width=0.8\textwidth]{lotka-volterra-gf-thinning-energy-distance.pdf}
 }
 \end{figure}
 
@@ -749,7 +750,7 @@ Gradient-free thinning offers a significant improvement over na\"ive thinning in
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=0.8\textwidth]{lotka-volterra-gf-thinning-ksd.eps}
+	\includegraphics[width=0.8\textwidth]{lotka-volterra-gf-thinning-ksd.pdf}
 }
 \end{figure}
 
