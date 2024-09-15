@@ -86,6 +86,7 @@ def plot_paths(
         ax: Optional[Axes] = None,
         label1: Optional[str] = None,
         label2: Optional[str] = None,
+        add_legend: bool = True,
 ) -> Figure:
     """Plot paths of MCMC chains
 
@@ -105,6 +106,8 @@ def plot_paths(
         variable label corresponding to `ind1`
     label2: Optional[str]
         variable label corresponding to `ind2`
+    add_legend: bool
+        if True, add legend onto each subplot. Default: True
 
     Returns
     -------
@@ -124,7 +127,9 @@ def plot_paths(
             ax.set_ylabel(label2)
         else:
             ax.set_ylabel(f'$x_{idx2 + 1}$')
-    ax.legend()
+
+    if add_legend:
+        ax.legend()
 
     return ax.figure
 
