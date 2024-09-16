@@ -93,13 +93,33 @@ A sample of size $n$ is a realisation $(x_i)_{i=0}^n$ of the first $n$ variables
 \frametitle{Challenges of running MCMC}
 
 \begin{enumerate}
-\item The choice of a starting point for a chain.
-\item Exploring the modes of a multimodal distribution.
-\item Calibrating the scale of the proposal distribution.
-\item Convergence detection.
-\item Detecting and eliminating the burn-in.
-\item Autocorrelation between samples in a chain.
-\item Compressing sample for further expensive processing.
+\item Dependency on the starting point of a chain
+    \begin{itemize}
+        \item[$\Rightarrow$] detection and removal of burn-in
+        \item[$\Rightarrow$] running multiple chains
+    \end{itemize}
+\item Efficient traversal of the target domain
+    \begin{itemize}
+        \item[$\Rightarrow$] calibration of the scale of the proposal distribution
+    \end{itemize}
+\item Exploring the modes of a multimodal distribution
+    \begin{itemize}
+        \item[$\Rightarrow$] calibration of the scale of the proposal distribution
+        \item[$\Rightarrow$] running multiple chains
+    \end{itemize}
+\item Convergence detection
+    \begin{itemize}
+        \item[$\Rightarrow$] convergence diagnostics
+        \item[$\Rightarrow$] running multiple chains
+    \end{itemize}
+\item Autocorrelation between samples in a chain
+    \begin{itemize}
+        \item[$\Rightarrow$] thinning
+    \end{itemize}
+\item Summarising the sample for further expensive processing
+    \begin{itemize}
+        \item[$\Rightarrow$] thinning
+    \end{itemize}
 \end{enumerate}
 
 \end{frame}
