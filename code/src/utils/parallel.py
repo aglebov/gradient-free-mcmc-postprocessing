@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterable, Protocol, Sequence, Tuple, TypeVar
+from typing import Any, Callable, Iterable, Optional, Protocol, Sequence, Tuple, TypeVar
 
 from joblib import Parallel, delayed
 
@@ -59,6 +59,7 @@ def apply_along_axis_parallel(
         chunk_size: int,
         map_parallel: Callable[[Callable[[Any], Any], Iterable[Any]], Iterable[Any]],
         args: Tuple[Any] = tuple(),
+        aggregate: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> np.ndarray:
     """Apply function along the given axis and parallelise in chunks
 
@@ -79,6 +80,8 @@ def apply_along_axis_parallel(
         function to perform mapping in parallel
     args: Tuple[Any]
         additional arguments to ``func1d``
+    aggregate: Callable[[np.ndarray], np.ndarray]
+        if given, this aggregation function will be applied to chunks of rows
 
     Returns
     -------
@@ -99,8 +102,12 @@ def apply_along_axis_parallel(
             yield chunk
 
     # define the function to apply to chunks
-    def func(chunk):
-        return np.apply_along_axis(func1d, axis, chunk, *args)
+    if aggregate is not None:
+        def func(chunk):
+            return aggregate(np.apply_along_axis(func1d, axis, chunk, *args))
+    else:
+        def func(chunk):
+            return np.apply_along_axis(func1d, axis, chunk, *args)
 
     # apply function to chunks in parallel
     results = map_parallel(func, chunker())
@@ -108,9 +115,14 @@ def apply_along_axis_parallel(
     # concatenate the results
     max_ndim = max((result.ndim for result in results))
     if max_ndim > 1:
-        return np.concatenate(results, axis=1 - axis)
+        res = np.concatenate(results, axis=1 - axis)
     else:
-        return np.concatenate(results)
+        res = np.concatenate(results)
+
+    if aggregate is not None:
+        return aggregate(res)
+    else:
+        return res
 
 
 def parallelise_for_unique(func, sample, map_parallel, row_chunk_size=200):
