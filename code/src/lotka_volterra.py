@@ -13,6 +13,25 @@ def lotka_volterra(t, u, theta):
     ]
 
 
+def lotka_volterra_sensitivity(t, uw, theta):
+    theta1, theta2, theta3, theta4 = theta
+    u1, u2, w1, w2, w3, w4, w5, w6, w7, w8 = uw
+    return [
+        # model equations
+        theta1 * u1 - theta2 * u1 * u2,
+        theta4 * u1 * u2 - theta3 * u2,
+        # sensitivities
+        u1 + (theta1 - theta2 * u2) * w1 - theta2 * u1 * w5,
+        -u1 * u2 + (theta1 - theta2 * u2) * w2 - theta2 * u1 * w6,
+        (theta1 - theta2 * u2) * w3 - theta2 * u1 * w7,
+        (theta1 - theta2 * u2) * w4 - theta2 * u1 * w8,
+        theta4 * u2 * w1 + (theta4 * u1 - theta3) * w5,
+        theta4 * u2 * w2 + (theta4 * u1 - theta3) * w6,
+        -u2 + theta4 * u2 * w3 + (theta4 * u1 - theta3) * w7,
+        u1 * u2 + theta4 * u2 * w4 + (theta4 * u1 - theta3) * w8,
+    ]
+
+
 t_n = 2400  # number of time data points
 t_span = [0, 25]  # the time span over which to integrate the system
 theta = [0.67, 1.33, 1., 1.]  # parameters of the model
