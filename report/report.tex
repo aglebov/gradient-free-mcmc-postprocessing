@@ -510,7 +510,7 @@ and obtain 1000 samples by directly drawing from the target. A scatter plot of t
 \end{itemize}
 
 We use numerical optimisation provided by the function \texttt{scipy.\allowbreak optimize.\allowbreak minimize} in the Python library \texttt{scipy}\footnote{\url{https://scipy.org}} to find the mode of the log-target as well as the Hessian matrix evaluated at the mode, and construct the Laplace approximation.
-For the KDE estimator, we use the Gaussian kernel, as implemented in the \texttt{scipy.\allowbreak stats.\allowbreak gaussian\_kde} function from the same library.
+For the KDE estimator, we use the Gaussian kernel, as implemented in the \texttt{jax.\allowbreak scipy.\allowbreak stats.\allowbreak gaussian\_kde} function from the \texttt{JAX}\footnote{\url{https://jax.readthedocs.io}} library.
 
 We evaluate the log-density of the chosen auxiliary distribution and the gradient for all sample points and use \Cref{alg:gf} to obtain a thinned sample. The results are shown in \Cref{fig:gmm:thinned}. The failure of the Laplace approximation is striking, so we investigate it further. The other methods produce visually sensible results.
 
@@ -715,7 +715,7 @@ The gradient
 \begin{equation*}
 (\nabla_u \log \phi_i)(u(t_i; \theta)) = C^{-1}(y(t_i) - u(t_i; \theta))
 \end{equation*}
-is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obtain the sensitivities $\partial u_r / \partial \theta_s$, we augment the system~(\ref{eq:lotka-volterra}) with additional forward sensitivity equations and solve it numerically. The derivation of the sensitivity equations can be found in Appendix~\ref{appendix:derivations:forward-sensitivity}. Alternatively, the sensitivities can be obtained by numerical differentiation, for example using the Python library \texttt{JAX}\footnote{\url{https://jax.readthedocs.io}}. Since the gradient is calculated independently for each element of the sample, these calculations can easily be parallelised at postprocessing stage\footnote{Parallelisation can be implemented with minimal effort using the Python \texttt{Dask} library (\url{https://docs.dask.org}) and run either locally or on Amazon Web Services (\url{https://aws.amazon.com}). See \url{https://github.com/aglebov/gradient-free-mcmc-postprocessing/blob/main/code/examples/Dask_AWS.ipynb} for a demonstration.}.
+is derived directly from~(\ref{eq:lotka-volterra:error-distr}). In order to obtain the sensitivities $\partial u_r / \partial \theta_s$, we augment the system~(\ref{eq:lotka-volterra}) with additional forward sensitivity equations and solve it numerically. The derivation of the sensitivity equations can be found in Appendix~\ref{appendix:derivations:forward-sensitivity}. Alternatively, the sensitivities can be obtained by numerical differentiation, for example using the Python library \texttt{JAX}. Since the gradient is calculated independently for each element of the sample, these calculations can easily be parallelised at postprocessing stage\footnote{Parallelisation can be implemented with minimal effort using the Python \texttt{Dask} library (\url{https://docs.dask.org}) and run either locally or on Amazon Web Services (\url{https://aws.amazon.com}). See \url{https://github.com/aglebov/gradient-free-mcmc-postprocessing/blob/main/code/examples/Dask_AWS.ipynb} for a demonstration.}.
 
 The gradient of the log-prior is obtained immediately from~(\ref{eq:lotka-volterra:prior}):
 \begin{equation*}
