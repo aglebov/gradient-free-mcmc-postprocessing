@@ -515,34 +515,13 @@ infer $\theta = (\theta_1, \dots, \theta_4)^T$ that best describes the observed 
 \end{equation*}
 \end{block}
 
-We solve the model with parameters
-\begin{equation*}
-\theta^* = (0.67, 1.33, 1, 1)^T
-\end{equation*}
-and initial values
-\begin{equation*}
-u(0) = (1, 1)^T
-\end{equation*}
-for $t \in [0, 25]$ discretised into $N = 2400$ points.
-
-We then add bivariate i.i.d.\ Gaussian noise:
-\begin{equation*}
-\varepsilon(t) \sim \mathcal{N}(0, \diag(0.2^2, 0.2^2)).
-\end{equation*}
-
-\end{frame}
-
-
-
-\begin{frame}
-\frametitle{Lotka-Volterra inverse problem: synthetic data}
-
-The resulting noisy data is used as the input for the inverse problem:
+We solve the equations with parameters $\theta^* = (0.67, 1.33, 1, 1)^T$
+and initial values $u(0) = (1, 1)^T$, and add bivariate i.i.d.\ Gaussian noise $\varepsilon(t) \sim \mathcal{N}(0, \diag(0.2^2, 0.2^2)):$
 
 \begin{figure}[h]
 \centering
 \makebox[\textwidth][c]{
-	\includegraphics[width=0.95\textwidth]{lotka-volterra.pdf}
+	\includegraphics[width=0.7\textwidth]{lotka-volterra.pdf}
 }
 \end{figure}
 
@@ -698,7 +677,7 @@ The project makes three contributions:
 
 \section{References}
 
-\begin{frame}[allowframebreaks]
+\begin{frame}
 \frametitle{References}
 
 \fontsize{8pt}{12}\selectfont
