@@ -432,7 +432,7 @@ We proceed to compare the performance of the proposed algorithm against na\"ive 
 \item evaluate the result of thinning using an impartial metric.
 \end{enumerate}
 
-For simplicity, we set the hyperparameters in~(\ref{eq:imq}) as $c = 1$, $\Gamma = I \cdot \text{median}\{\|x_i - x_j\|\}$ and $\beta=-\frac12$ across all experiments.
+For simplicity, we set the hyperparameters in~(\ref{eq:imq}) as $c = 1$, $\Gamma = I \cdot (\text{median}\{\|x_i - x_j\|\})^2$ and $\beta=-\frac12$ across all experiments.
 
 In order to assess how well the selected sample approximates the target distribution, we use the energy distance. Following \cite{rizzoEnergyDistance2016}, the squared energy distance is defined for two distributions $P$ and $Q$ as
 \begin{equation}
@@ -523,7 +523,7 @@ We evaluate the log-density of the chosen auxiliary distribution and the gradien
 \label{fig:gmm:thinned}}
 \end{figure}
 
-To see why the Laplace approximation fails in this case, recall that~(\ref{eq:k_P_Q:expanded}) can be written in the form~(\ref{eq:k_P_Q}) and consider the optimisation performed by \Cref{alg:gf}. The first iteration seeks to find
+To see why the Laplace approximation fails in this case, recall that~(\ref{eq:k_P_Q:expanded}) can be written in the form~(\ref{eq:k_P_Q}) and consider the optimisation performed by \Cref{alg:gf}. The first iteration aims to find
 \begin{equation*}
 \argmin_i \frac{k_{P,Q}(x_i, x_i)}{2} = \argmin_i \left(\frac{q(x_i)}{p(x_i)}\right)^2 k_Q(x_i, x_i).
 \end{equation*}
