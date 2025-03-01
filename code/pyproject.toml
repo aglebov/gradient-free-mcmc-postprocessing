@@ -28,7 +28,7 @@ dependencies = [
     "arviz",
     "jax",
     "dask[distributed]",
-    "stein_thinning @ git+https://github.com/wilson-ye-chen/stein_thinning",
+    "stein_thinning",
     "dcor",
     "numdifftools",
     "scikit-learn",
@@ -37,7 +37,7 @@ dependencies = [
     "s3fs",
     "pytest",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.9,<=3.12"
 
 [project.urls]
 Homepage = "https://github.com/aglebov/gradient-free-mcmc-postprocessing"
