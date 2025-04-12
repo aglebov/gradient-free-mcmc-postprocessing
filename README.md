@@ -13,7 +13,7 @@ We replicate the results from [1] for the Lotka-Volterra model in ``code/lotka_v
 
 The ``code/notebooks/examples`` directory also contains several examples of using the relevant Python packages.
 
-To run the code, navigate to the `code` directory, create and activate a virtual environment and run the following command:
+To run the code, create and activate a virtual environment and run the following command from the repository root:
 ```
 pip install -e .
 ```
