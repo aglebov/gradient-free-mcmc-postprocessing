@@ -29,6 +29,7 @@ dependencies = [
     "jax",
     "dask[distributed]",
     "stein_thinning",
+    "toy_mcmc @ git+https://github.com/aglebov/toy_mcmc@v0.1",
     "dcor",
     "numdifftools",
     "scikit-learn",
